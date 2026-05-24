@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CareRelay AI</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell rail-open">
+      <aside class="rail">
+        <button id="railToggle" class="rail-toggle" title="展开/收回侧边栏">
+          <span></span>
+        </button>
+        <div class="brand-mark">CR</div>
+        <nav class="rail-nav" aria-label="CareRelay">
+          <button class="rail-btn active" data-page="todayPage" title="今日监护信息">
+            <span class="icon-house"></span>
+            <em>今日监护</em>
+          </button>
+          <button class="rail-btn" data-page="guardianPage" title="监护人">
+            <span class="icon-people"></span>
+            <em>监护人</em>
+          </button>
+          <button class="rail-btn" data-page="historyPage" title="历史监护信息">
+            <span class="icon-history"></span>
+            <em>历史信息</em>
+          </button>
+          <button class="rail-btn" data-page="memoryPage" title="用户个性化知识库">
+            <span class="icon-memory"></span>
+            <em>知识库</em>
+          </button>
+          <button class="rail-btn" data-page="videoPage" title="视频聊天">
+            <span class="icon-video"></span>
+            <em>视频聊天</em>
+          </button>
+        </nav>
+        <div class="rail-status"><span></span></div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div class="title-block">
+            <p class="eyebrow">CareRelay AI</p>
+            <h1>家庭照护交接指挥台</h1>
+            <p class="subtitle">把语音、文字和图片整理成清楚、安心、可追踪的今日交接。</p>
+          </div>
+          <div class="topbar-actions">
+            <div class="model-pill"><span class="pulse"></span>服务已连接</div>
+            <button id="copyMessageBtn" class="ghost-btn" disabled>复制交接</button>
+            <button id="speakBtn" class="primary-soft" disabled>语音播报</button>
+          </div>
+        </header>
+
+        <section id="todayPage" class="page active">
+          <div class="today-grid">
+            <section class="panel input-panel">
+              <div class="panel-head">
+                <div>
+                  <p class="eyebrow">Input</p>
+                  <h2>今日输入</h2>
+                </div>
+                <label class="visual-toggle">
+                  <input id="visualToggle" type="checkbox" checked />
+                  <span>生成信息图</span>
+                </label>
+              </div>
+
+              <label class="field-label" for="subjectInput">监护对象</label>
+              <div class="subject-row">
+                <input id="subjectInput" value="爷爷" />
+                <select id="sceneSelect">
+                  <option value="elder">老人</option>
+                  <option value="baby">宝宝</option>
+                  <option value="pet">宠物</option>
+                </select>
+              </div>
+
+              <div class="sample-row">
+                <button class="sample-chip" data-sample="elder">老人样例</button>
+                <button class="sample-chip" data-sample="baby">宝宝样例</button>
+                <button class="sample-chip" data-sample="pet">宠物样例</button>
+              </div>
+
+              <label class="field-label" for="careText">照护记录</label>
+              <textarea id="careText" rows="9">今天早上8点给爷爷吃了降压药，中午吃了一碗粥，下午血压有点高，晚上还没确认有没有吃药。明天上午9点要去医院复查，医保卡和病历本要提前放包里。</textarea>
+
+              <div class="modality-grid">
+                <div class="upload-tile">
+                  <div class="tile-icon mic-icon"></div>
+                  <div>
+                    <h3>电脑麦克风</h3>
+                    <p id="audioStatus">点击圆点开始录音，再点击停止</p>
+                  </div>
+                  <div class="tile-actions">
+                    <button id="recordBtn" class="icon-btn" title="开始/停止录音"></button>
+                    <label class="icon-btn upload-btn" title="上传音频">
+                      <input id="audioUpload" type="file" accept="audio/*" />
+                    </label>
+                  </div>
+                </div>
+
+                <label class="upload-tile image-tile" for="imageUpload">
+                  <div class="tile-icon image-icon"></div>
+                  <div>
+                    <h3>图片</h3>
+                    <p id="imageStatus">上传后自动解析并加入记录</p>
+                  </div>
+                  <input id="imageUpload" type="file" accept="image/*" />
+                </label>
+              </div>
+
+              <div id="imagePreview" class="image-preview hidden"></div>
+              <div id="imageInsightsBox" class="decoded-box hidden"></div>
+
+              <button id="analyzeBtn" class="analyze-btn">
+                <span>生成今日交接卡</span>
+                <b></b>
+              </button>
+
+              <div id="progressBox" class="progress-box hidden">
+                <div class="progress-line"><span></span></div>
+                <p id="progressText">正在收集多模态输入</p>
+              </div>
+            </section>
+
+            <section class="panel center-panel">
+              <div class="hero-card">
+                <div class="status-ring" id="statusRing" style="--score: 72">
+                  <div>
+                    <strong id="statusScore">72</strong>
+                    <span>今日健康指数</span>
+                  </div>
+                </div>
+                <div class="hero-copy">
+                  <div class="status-line">
+                    <span id="careStatus" class="status-badge">待确认</span>
+                    <span id="cardDate">今日</span>
+                  </div>
+                  <h2 id="cardSubject">爷爷今日交接</h2>
+                  <p id="summaryText">等待生成交接卡。</p>
+                </div>
+              </div>
+
+              <div id="warnings" class="warnings hidden"></div>
+
+              <div class="focus-grid">
+                <div class="message-card focus-message">
+                  <p class="eyebrow">Family Message</p>
+                  <p id="familyMessage">生成后可直接转发到家人群。</p>
+                </div>
+                <div class="emotion-card compact-emotion">
+                  <div>
+                    <p class="eyebrow">Emotion</p>
+                    <h3 id="emotionTone">需要确认</h3>
+                  </div>
+                  <div class="anxiety-meter"><span id="anxietyValue">40</span></div>
+                  <p id="emotionNote">信息越清楚，家属越安心。</p>
+                  <div id="stressPoints" class="tag-row"></div>
+                </div>
+              </div>
+
+              <div class="task-layout">
+                <div class="task-column">
+                  <div class="task-head confirm"><span></span><h3>必须确认</h3></div>
+                  <div id="confirmList" class="task-list"></div>
+                </div>
+                <div class="task-column">
+                  <div class="task-head todo"><span></span><h3>下一步</h3></div>
+                  <div id="todoList" class="task-list"></div>
+                </div>
+              </div>
+
+              <div class="section-split">
+                <div>
+                  <p class="eyebrow">Timeline</p>
+                  <h3>照护时间线</h3>
+                </div>
+              </div>
+              <div id="timeline" class="timeline"></div>
+            </section>
+
+            <aside class="panel visual-side">
+              <div class="visual-card">
+                <div class="visual-head">
+                  <div>
+                    <p class="eyebrow">Visual</p>
+                    <h3>交接信息图</h3>
+                  </div>
+                  <span id="visualBadge">Ready</span>
+                </div>
+                <img id="visualImage" alt="CareRelay visual handoff" title="点击放大/缩小" />
+              </div>
+              <div class="risk-card">
+                <p class="eyebrow">Risk Radar</p>
+                <div id="riskBars" class="risk-bars"></div>
+              </div>
+              <div class="completed-strip">
+                <div>
+                  <p class="eyebrow">Done</p>
+                  <h3>已完成</h3>
+                </div>
+                <div id="completedList" class="completed-list"></div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="guardianPage" class="page">
+          <div class="page-grid two-col">
+            <section class="panel guardian-card">
+              <p class="eyebrow">Guardian</p>
+              <h2>监护人设置</h2>
+              <div class="guardian-candidates">
+                <label><span>主要监护人 1</span><input id="guardianInput" value="妈妈" /></label>
+                <label><span>主要监护人 2</span><input value="爸爸" /></label>
+                <label><span>主要监护人 3</span><input value="护工阿姨" /></label>
+                <label><span>现负责监护人</span><select id="currentGuardian"><option>妈妈</option><option>爸爸</option><option>护工阿姨</option><option>我</option></select></label>
+                <label><span>交接监护人</span><select id="handoffInput"><option>家人群</option><option>爸爸</option><option>妈妈</option><option>护工阿姨</option></select></label>
+                <label><span>紧急联系人</span><input value="社区医生 / 物业" /></label>
+                <label><span>联系电话 1</span><input value="138-0000-0000" /></label>
+                <label><span>联系电话 2</span><input value="139-0000-0000" /></label>
+                <label><span>照护地点</span><input value="家中客厅 / 卧室" /></label>
+                <label><span>交接频率</span><select><option>每天晚间</option><option>早晚两次</option><option>每次换班</option><option>异常时立即</option></select></label>
+              </div>
+            </section>
+            <section class="panel">
+              <p class="eyebrow">Profile</p>
+              <h2>当前监护对象</h2>
+              <p class="profile-copy">切换“监护对象”后，历史信息和个性化知识库都会自动按对象过滤。宝宝、老人、宠物会拥有各自独立的记忆。</p>
+            </section>
+          </div>
+        </section>
+
+        <section id="historyPage" class="page">
+          <section id="historyPanel" class="panel history-card">
+            <div class="visual-head">
+              <div>
+                <p class="eyebrow">History</p>
+                <h2>历史监护信息</h2>
+              </div>
+              <button id="refreshHistoryBtn" class="ghost-btn compact">刷新</button>
+            </div>
+            <div id="historyList" class="history-list"></div>
+          </section>
+        </section>
+
+        <section id="memoryPage" class="page">
+          <section id="memoryPanel" class="panel memory-card">
+            <div class="memory-head">
+              <div>
+                <p class="eyebrow">Memory</p>
+                <h2>用户个性化知识库</h2>
+                <p id="memorySubjectHint" class="profile-copy">当前对象：爷爷</p>
+              </div>
+              <button id="refreshMemoryBtn" class="ghost-btn compact">刷新</button>
+            </div>
+            <div class="manual-memory">
+              <textarea id="manualMemoryText" rows="3" placeholder="例如：宝宝晚上睡前需要先拍嗝；爷爷复诊前一天要准备医保卡。"></textarea>
+              <button id="saveManualMemoryBtn" class="primary-soft">保存到当前对象</button>
+            </div>
+            <div id="memoryHits" class="memory-list"></div>
+            <div id="memorySuggestions" class="suggestions"></div>
+          </section>
+        </section>
+
+        <section id="videoPage" class="page">
+          <div class="video-layout">
+            <section class="panel video-panel">
+              <div class="visual-head">
+                <div>
+                  <p class="eyebrow">Video Care</p>
+                  <h2>视频观察与通话</h2>
+                </div>
+                <span id="videoStatus" class="status-badge">未连接</span>
+              </div>
+              <div class="video-stage">
+                <video id="careVideo" autoplay playsinline muted></video>
+                <div id="videoPlaceholder" class="video-placeholder">
+                  <strong>点击开启视频观察</strong>
+                  <span>用于临时查看受监护人状态，并与现场监护人语音沟通。</span>
+                </div>
+              </div>
+              <div class="video-actions">
+                <button id="startVideoBtn" class="primary-soft">开启视频观察</button>
+                <button id="stopVideoBtn" class="ghost-btn">结束</button>
+                <button id="toggleMicBtn" class="ghost-btn">麦克风开</button>
+                <button id="toggleCameraBtn" class="ghost-btn">摄像头开</button>
+              </div>
+            </section>
+            <section class="panel video-side-panel">
+              <p class="eyebrow">Quick Talk</p>
+              <h2>快速沟通</h2>
+              <div class="quick-talk-list">
+                <button class="sample-chip" data-talk="请问现在有人在旁边照看吗？">确认有人照看</button>
+                <button class="sample-chip" data-talk="请帮忙看一下今天的药是否已经按医嘱服用。">确认服药</button>
+                <button class="sample-chip" data-talk="如果出现明显不适，请及时联系医生或家人。">异常提醒</button>
+              </div>
+              <textarea id="talkText" rows="4" placeholder="输入要对现场说的话，也可以点击上面的快捷话术。"></textarea>
+              <button id="speakTalkBtn" class="primary-soft">播放给现场听</button>
+              <p class="profile-copy">可在家中监护端打开此页面，进行实时观察、快速提醒和语音沟通。</p>
+            </section>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div id="imageLightbox" class="image-lightbox hidden">
+      <img id="lightboxImage" alt="放大的交接信息图" />
+    </div>
+    <div id="toast" class="toast hidden"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

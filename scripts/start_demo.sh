@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+python -m uvicorn backend.main:app --host "${HOST:-0.0.0.0}" --port "${PORT:-7860}"

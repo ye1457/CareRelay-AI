@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+.DS_Store
+*.log
+
+# Runtime data. The app recreates these folders/files on startup.
+data/*.sqlite3
+data/*.db
+data/cache/*
+data/uploads/*
+!data/.gitkeep
+!data/cache/.gitkeep
+!data/uploads/.gitkeep
+
+# Local secrets or environment overrides.
+.env
+.env.*
+!.env.example
+
