@@ -2223,6 +2223,30 @@ body[data-scene="pet"] .artifact-panel {
   margin-top: 14px;
 }
 
+.guardian-form {
+  display: grid;
+  gap: 14px;
+}
+
+.guardian-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 2px;
+}
+
+.guardian-actions .solid-btn {
+  min-width: 148px;
+}
+
+.guardian-actions span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 820;
+}
+
 .profile-card {
   margin-top: 14px;
   display: grid;
@@ -2240,6 +2264,38 @@ body[data-scene="pet"] .artifact-panel {
   display: block;
   margin-bottom: 4px;
   font-size: 18px;
+}
+
+.guardian-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.guardian-summary-item {
+  min-height: 64px;
+  padding: 10px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+
+.guardian-summary-item span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.guardian-summary-item strong {
+  min-width: 0;
+  color: #1f312b;
+  font-size: 14px;
+  font-weight: 900;
+  word-break: break-word;
 }
 
 .video-panel,
@@ -2440,7 +2496,8 @@ body[data-scene="pet"] .artifact-panel {
   .task-grid,
   .metric-strip,
   .manual-memory,
-  .guardian-fields {
+  .guardian-fields,
+  .guardian-summary {
     grid-template-columns: 1fr;
   }
 

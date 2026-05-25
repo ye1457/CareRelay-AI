@@ -341,6 +341,17 @@ const defaultVisualAssets = {
   elder: "/static/assets/visual-elder.png",
 };
 
+const guardianStorageKey = "careRelay.guardianSettings";
+
+const guardianDefaults = {
+  guardian: "妈妈",
+  currentGuardian: "爸爸",
+  handoffTarget: "家人群",
+  emergencyContact: "社区医生 / 物业",
+  phone: "138-0000-0000",
+  location: "家中客厅 / 卧室",
+};
+
 const progressSteps = [
   "正在整理输入",
   "正在检索知识库",
@@ -406,6 +417,87 @@ function currentSubject() {
 
 function currentScene() {
   return $("#sceneSelect")?.value || "elder";
+}
+
+function guardianSettingsFromForm() {
+  return {
+    guardian: ($("#guardianInput")?.value || guardianDefaults.guardian).trim() || guardianDefaults.guardian,
+    currentGuardian: ($("#currentGuardian")?.value || guardianDefaults.currentGuardian).trim() || guardianDefaults.currentGuardian,
+    handoffTarget: ($("#handoffInput")?.value || guardianDefaults.handoffTarget).trim() || guardianDefaults.handoffTarget,
+    emergencyContact: ($("#emergencyContactInput")?.value || guardianDefaults.emergencyContact).trim() || guardianDefaults.emergencyContact,
+    phone: ($("#guardianPhoneInput")?.value || guardianDefaults.phone).trim() || guardianDefaults.phone,
+    location: ($("#careLocationInput")?.value || guardianDefaults.location).trim() || guardianDefaults.location,
+  };
+}
+
+function savedGuardianSettings() {
+  try {
+    return { ...guardianDefaults, ...JSON.parse(localStorage.getItem(guardianStorageKey) || "{}") };
+  } catch (_) {
+    return { ...guardianDefaults };
+  }
+}
+
+function setSelectValue(selector, value) {
+  const node = $(selector);
+  if (!node) return;
+  const exists = Array.from(node.options || []).some((option) => option.value === value);
+  if (!exists && value) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    node.append(option);
+  }
+  node.value = value;
+}
+
+function renderGuardianSummary(settings = guardianSettingsFromForm()) {
+  const node = $("#guardianSummary");
+  if (!node) return;
+  const items = [
+    ["主要联系人", settings.guardian],
+    ["当前照护人", settings.currentGuardian],
+    ["交接对象", settings.handoffTarget],
+    ["紧急联系人", settings.emergencyContact],
+    ["联系电话", settings.phone],
+    ["照护地点", settings.location],
+  ];
+  node.innerHTML = items
+    .map(
+      ([label, value]) => `
+        <div class="guardian-summary-item">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </div>
+      `,
+    )
+    .join("");
+}
+
+function applyGuardianSettings(settings = savedGuardianSettings(), { status = "已加载保存设置" } = {}) {
+  if ($("#guardianInput")) $("#guardianInput").value = settings.guardian;
+  setSelectValue("#currentGuardian", settings.currentGuardian);
+  setSelectValue("#handoffInput", settings.handoffTarget);
+  if ($("#emergencyContactInput")) $("#emergencyContactInput").value = settings.emergencyContact;
+  if ($("#guardianPhoneInput")) $("#guardianPhoneInput").value = settings.phone;
+  if ($("#careLocationInput")) $("#careLocationInput").value = settings.location;
+  renderGuardianSummary(settings);
+  setText("#guardianSaveStatus", status);
+}
+
+function markGuardianDirty() {
+  renderGuardianSummary(guardianSettingsFromForm());
+  setText("#guardianSaveStatus", "未保存修改");
+}
+
+function saveGuardianSettings(event) {
+  event?.preventDefault();
+  const settings = guardianSettingsFromForm();
+  localStorage.setItem(guardianStorageKey, JSON.stringify(settings));
+  renderGuardianSummary(settings);
+  const now = new Date();
+  setText("#guardianSaveStatus", `已保存 ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+  toast("家属交接设置已保存");
 }
 
 function sceneLabel(scene) {
@@ -523,6 +615,7 @@ function updateTopTitle() {
   $("#profileMeta").textContent = `${sceneLabel(scene)} · 家庭交接`;
   $("#profileAvatar").textContent = sceneAvatar(scene, subject);
   $("#profileAvatar").className = `avatar ${scene === "baby" ? "baby" : scene === "pet" ? "pet" : "elder"}`;
+  renderGuardianSummary();
   syncSubjectSidebar();
   renderQuickInputs();
   renderModeFocus();
@@ -2096,6 +2189,9 @@ function setupEvents() {
   $("#refreshMemoryBtn").addEventListener("click", loadMemories);
   $("#refreshHistoryBtn").addEventListener("click", loadHistory);
   $("#saveManualMemoryBtn").addEventListener("click", saveManualMemory);
+  $("#guardianForm")?.addEventListener("submit", saveGuardianSettings);
+  $("#guardianForm")?.addEventListener("input", markGuardianDirty);
+  $("#guardianForm")?.addEventListener("change", markGuardianDirty);
   $("#careText").addEventListener("input", scheduleDraftUpdate);
   document.addEventListener("change", handleTaskToggle);
   $("#subjectInput").addEventListener("change", async () => {
@@ -2208,6 +2304,7 @@ async function init() {
   setupUploads();
   await setupRecorder();
   await loadSamples();
+  applyGuardianSettings();
   updateTopTitle();
   renderCareEntries();
   await Promise.all([loadMemories(), loadHistory()]);

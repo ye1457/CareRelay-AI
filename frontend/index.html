@@ -405,14 +405,20 @@
             <section class="panel utility-panel">
               <span class="section-kicker">Family</span>
               <h2>家属与交接</h2>
+              <form id="guardianForm" class="guardian-form">
               <div class="guardian-fields">
                 <label><span>主要联系人</span><input id="guardianInput" value="妈妈" /></label>
                 <label><span>当前照护人</span><select id="currentGuardian"><option>妈妈</option><option>爸爸</option><option>护工阿姨</option><option>我</option></select></label>
                 <label><span>交接对象</span><select id="handoffInput"><option>家人群</option><option>爸爸</option><option>妈妈</option><option>护工阿姨</option></select></label>
-                <label><span>紧急联系人</span><input value="社区医生 / 物业" /></label>
-                <label><span>联系电话</span><input value="138-0000-0000" /></label>
-                <label><span>照护地点</span><input value="家中客厅 / 卧室" /></label>
+                <label><span>紧急联系人</span><input id="emergencyContactInput" value="社区医生 / 物业" /></label>
+                <label><span>联系电话</span><input id="guardianPhoneInput" value="138-0000-0000" /></label>
+                <label><span>照护地点</span><input id="careLocationInput" value="家中客厅 / 卧室" /></label>
               </div>
+              <div class="guardian-actions">
+                <button id="saveGuardianBtn" class="solid-btn" type="submit">保存交接设置</button>
+                <span id="guardianSaveStatus">未保存修改</span>
+              </div>
+              </form>
             </section>
             <section class="panel utility-panel">
               <span class="section-kicker">Profile</span>
@@ -424,6 +430,7 @@
                   <p id="profileMeta" class="muted-copy">老人照护 · 家庭交接</p>
                 </div>
               </div>
+              <div id="guardianSummary" class="guardian-summary"></div>
             </section>
           </div>
         </section>
