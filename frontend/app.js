@@ -337,6 +337,10 @@ const state = {
   careEntrySeq: 0,
 };
 
+const defaultVisualAssets = {
+  elder: "/static/assets/visual-elder.png",
+};
+
 const progressSteps = [
   "正在整理输入",
   "正在检索知识库",
@@ -1294,8 +1298,17 @@ async function analyze() {
 
 function imageSrc(card) {
   if (card?.visual_image_b64) return `data:image/png;base64,${card.visual_image_b64}`;
+  const defaultSrc = card && card === state.lastCard ? defaultVisualAssets[currentScene()] || "" : "";
+  if (defaultSrc) return defaultSrc;
   if (card?.visual_fallback_svg) return `data:image/svg+xml;base64,${card.visual_fallback_svg}`;
   return "";
+}
+
+function visualBadgeText(card) {
+  if (card?.visual_image_b64) return "已生成";
+  if (card && card === state.lastCard && defaultVisualAssets[currentScene()]) return "默认图";
+  if (card?.visual_fallback_svg) return "备用图";
+  return "待生成";
 }
 
 function renderResult(card, warnings = []) {
@@ -1804,7 +1817,7 @@ function renderVisual(card) {
     img.classList.add("hidden");
     empty.classList.remove("hidden");
   }
-  $("#visualBadge").textContent = card?.visual_image_b64 ? "已生成" : card?.visual_fallback_svg ? "备用图" : "待生成";
+  $("#visualBadge").textContent = visualBadgeText(card);
 }
 
 async function generateVisualAsync(card) {
@@ -1827,17 +1840,17 @@ async function generateVisualAsync(card) {
     } else if (data.visual_fallback_svg) {
       state.lastCard.visual_fallback_svg = data.visual_fallback_svg;
       renderVisual(state.lastCard);
-      toast((data.warnings || ["交接卡已生成，AI 图片使用备用图"])[0]);
+      toast(defaultVisualAssets[currentScene()] ? "AI 图片未返回，已显示默认图" : (data.warnings || ["交接卡已生成，AI 图片使用备用图"])[0]);
     } else {
       renderVisual(state.lastCard);
-      $("#visualBadge").textContent = imageSrc(state.lastCard) ? "备用图" : "待生成";
-      toast((data.warnings || ["交接卡已生成，AI 图片使用备用图"])[0]);
+      $("#visualBadge").textContent = visualBadgeText(state.lastCard);
+      toast(defaultVisualAssets[currentScene()] ? "AI 图片未返回，已显示默认图" : (data.warnings || ["交接卡已生成，AI 图片使用备用图"])[0]);
     }
   } catch (error) {
     if (state.lastCard === currentCard) {
       renderVisual(state.lastCard);
-      $("#visualBadge").textContent = imageSrc(state.lastCard) ? "备用图" : "待生成";
-      toast("交接卡已生成，AI 图片暂不可用");
+      $("#visualBadge").textContent = visualBadgeText(state.lastCard);
+      toast(defaultVisualAssets[currentScene()] ? "交接卡已生成，已显示默认图" : "交接卡已生成，AI 图片暂不可用");
     }
   }
 }
