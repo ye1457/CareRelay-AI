@@ -672,7 +672,7 @@ async function loadMemories() {
 async function loadHistory() {
   const subject = encodeURIComponent(currentSubject());
   try {
-    const res = await fetch(`/api/history?user_id=demo_user&care_subject=${subject}&limit=10`);
+    const res = await fetch(`/api/history?user_id=demo_user&care_subject=${subject}&limit=48`);
     const data = await res.json();
     renderHistory(data.records || []);
   } catch (_) {
@@ -1889,19 +1889,149 @@ function renderQuestions(items) {
   node.innerHTML = items.map((item) => `<div class="question-item">${escapeHtml(item)}</div>`).join("");
 }
 
+function parseHistoryDate(value) {
+  if (!value) return null;
+  const normalized = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function padTime(value) {
+  return String(value).padStart(2, "0");
+}
+
+function historyDayKey(value) {
+  const date = parseHistoryDate(value);
+  if (!date) return "unknown";
+  return `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}`;
+}
+
+function historyDayLabel(value) {
+  const date = parseHistoryDate(value);
+  if (!date) return "日期待确认";
+  const today = new Date();
+  const startOf = (item) => new Date(item.getFullYear(), item.getMonth(), item.getDate()).getTime();
+  const dayDiff = Math.round((startOf(today) - startOf(date)) / 86400000);
+  const dateText = `${date.getFullYear()}-${padTime(date.getMonth() + 1)}-${padTime(date.getDate())}`;
+  if (dayDiff === 0) return `今天 · ${dateText}`;
+  if (dayDiff === 1) return `昨天 · ${dateText}`;
+  return dateText;
+}
+
+function historyTimeLabel(value) {
+  const date = parseHistoryDate(value);
+  if (!date) return "时间待确认";
+  return `${padTime(date.getHours())}:${padTime(date.getMinutes())}`;
+}
+
+function historyDisplayText(item) {
+  return String(item.summary || item.input_text || "已生成交接记录").trim();
+}
+
+function historyInputPreview(item) {
+  const input = String(item.input_text || "").trim();
+  const summary = historyDisplayText(item);
+  if (!input || careRecordSimilarity(input, summary) >= 0.9) return "";
+  return input.length > 88 ? `${input.slice(0, 88)}...` : input;
+}
+
+function historySimilarity(a, b) {
+  const left = normalizeCareRecordText(a);
+  const right = normalizeCareRecordText(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  return careRecordSimilarity(left, right);
+}
+
+function sameHistoryCluster(item, group) {
+  const subject = item.care_subject || currentSubject();
+  if (subject !== group.care_subject) return false;
+  if (historyDayKey(item.created_at) !== group.dayKey) return false;
+  const summaryScore = historySimilarity(historyDisplayText(item), group.text);
+  if (summaryScore < 0.92) return false;
+  if (summaryScore >= 0.98) return true;
+  const leftInput = String(item.input_text || "").trim();
+  const rightInput = String(group.input_text || "").trim();
+  if (!leftInput || !rightInput) return true;
+  return historySimilarity(leftInput, rightInput) >= 0.88;
+}
+
+function compactHistoryRecords(records) {
+  const groups = [];
+  records.forEach((item) => {
+    const text = historyDisplayText(item);
+    const existing = groups.find((group) => sameHistoryCluster(item, group));
+    if (existing) {
+      existing.count += 1;
+      existing.merged.push(item);
+      return;
+    }
+    groups.push({
+      ...item,
+      care_subject: item.care_subject || currentSubject(),
+      text,
+      inputPreview: historyInputPreview(item),
+      dayKey: historyDayKey(item.created_at),
+      count: 1,
+      merged: [item],
+    });
+  });
+  return groups.slice(0, 12);
+}
+
+function historyInitial(subject) {
+  return Array.from(String(subject || "照").trim())[0] || "照";
+}
+
 function renderHistory(records) {
   const node = $("#historyList");
   if (!records.length) {
-    node.innerHTML = `<div class="history-item">暂无历史交接记录</div>`;
+    setText("#historySummary", "当前对象还没有历史交接记录。");
+    node.innerHTML = `<div class="history-empty">暂无历史交接记录</div>`;
     return;
   }
-  node.innerHTML = records
+  const compacted = compactHistoryRecords(records);
+  const mergedCount = compacted.reduce((total, item) => total + Math.max(0, item.count - 1), 0);
+  setText(
+    "#historySummary",
+    `显示最近 ${compacted.length} 组交接${mergedCount ? `，已合并 ${mergedCount} 条重复记录` : "，按时间倒序排列"}`,
+  );
+  const byDay = compacted.reduce((groups, item) => {
+    if (!groups[item.dayKey]) groups[item.dayKey] = [];
+    groups[item.dayKey].push(item);
+    return groups;
+  }, {});
+  node.innerHTML = Object.entries(byDay)
     .map(
-      (item) => `
-        <div class="history-item">
-          <strong>${escapeHtml(item.care_subject)} · ${escapeHtml(item.created_at)}</strong>
-          <p>${escapeHtml(item.summary || item.input_text || "已生成交接记录")}</p>
-        </div>
+      ([dayKey, items]) => `
+        <section class="history-day-group" aria-label="${escapeHtml(historyDayLabel(items[0]?.created_at || dayKey))}">
+          <div class="history-day-label">${escapeHtml(historyDayLabel(items[0]?.created_at || dayKey))}</div>
+          ${items
+            .map(
+              (item) => `
+                <article class="history-item">
+                  <div class="history-rail" aria-hidden="true">
+                    <span>${escapeHtml(historyInitial(item.care_subject))}</span>
+                  </div>
+                  <div class="history-card-main">
+                    <div class="history-item-top">
+                      <div>
+                        <strong>${escapeHtml(item.care_subject)}</strong>
+                        <small>${escapeHtml(item.count > 1 ? `同类记录 ${item.count} 次` : "单次交接")}</small>
+                      </div>
+                      <div class="history-meta">
+                        <span>${escapeHtml(historyTimeLabel(item.created_at))}</span>
+                        ${item.count > 1 ? `<b>已合并</b>` : ""}
+                      </div>
+                    </div>
+                    <p>${escapeHtml(item.text)}</p>
+                    ${item.inputPreview ? `<div class="history-input-preview">${escapeHtml(item.inputPreview)}</div>` : ""}
+                  </div>
+                </article>
+              `,
+            )
+            .join("")}
+        </section>
       `,
     )
     .join("");
