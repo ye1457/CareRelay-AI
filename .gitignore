@@ -12,7 +12,6 @@ env/
 *.log
 
 # Runtime data. The app recreates these folders/files on startup.
-data/*.sqlite3
 data/*.db
 data/cache/*
 data/uploads/*

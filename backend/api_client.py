@@ -186,10 +186,34 @@ class APIClient:
         )
         if response.status_code != 200:
             return "", [self._record("VisualAgent", model, "failed", start, response.text[:240])]
-        data = response.json()
+        try:
+            data = response.json()
+        except Exception:
+            return "", [self._record("VisualAgent", model, "failed", start, response.text[:240])]
         item = (data.get("data") or [{}])[0]
-        b64 = item.get("b64_json", "")
-        return b64, [self._record("VisualAgent", model, "ok", start, "b64_json" if b64 else "empty")]
+        b64 = item.get("b64_json") or item.get("base64") or item.get("image_base64") or ""
+        if isinstance(b64, str) and b64.startswith("data:image"):
+            b64 = b64.split(",", 1)[-1]
+        if b64:
+            return b64, [self._record("VisualAgent", model, "ok", start, "b64_json")]
+        image_url = item.get("url") or item.get("image_url") or ""
+        if image_url:
+            downloaded_b64 = self._download_image_as_b64(str(image_url))
+            if downloaded_b64:
+                return downloaded_b64, [self._record("VisualAgent", model, "ok", start, "url")]
+            return "", [self._record("VisualAgent", model, "failed", start, "image_url_download_failed")]
+        return "", [self._record("VisualAgent", model, "ok", start, f"empty keys={','.join(item.keys())}")]
+
+    def _download_image_as_b64(self, image_url: str) -> str:
+        if image_url.startswith("data:image"):
+            return image_url.split(",", 1)[-1]
+        try:
+            response = self.session.get(image_url, timeout=self.models.image_timeout)
+            if response.status_code == 200 and response.content:
+                return base64.b64encode(response.content).decode("ascii")
+        except Exception:
+            return ""
+        return ""
 
     def embed(self, text: str) -> tuple[list[float], list[ModelCall]]:
         start = time.time()

@@ -27,7 +27,7 @@ const careModes = {
     textLabel: "照护记录",
     scoreLabel: "今日指数",
     summaryTitle: (subject) => `${subject}今日交接`,
-    emptySummary: "写下今日记录后，会在这里预览交接重点。",
+    emptySummary: "填写今日记录后，点击生成按钮会整理成交接卡。",
     familyMessage: "生成后可直接转发到家人群。",
     visualEmptyTitle: "CareRelay",
     visualEmptySubtitle: "今日交接",
@@ -125,7 +125,7 @@ const careModes = {
     textLabel: "宝宝记录",
     scoreLabel: "节律指数",
     summaryTitle: (subject) => `${subject}今日节律`,
-    emptySummary: "记录喂奶、睡眠、尿布、体温和哭闹情况后，会在这里预览下一次照护节奏。",
+    emptySummary: "记录喂奶、睡眠、尿布、体温和哭闹情况后，点击生成按钮会整理成节律卡。",
     familyMessage: "生成后可直接发给家人，统一下一次喂养、哄睡和观察安排。",
     visualEmptyTitle: "Baby Rhythm",
     visualEmptySubtitle: "喂养 · 睡眠 · 尿布",
@@ -223,7 +223,7 @@ const careModes = {
     textLabel: "宠物记录",
     scoreLabel: "状态指数",
     summaryTitle: (subject) => `${subject}今日状态`,
-    emptySummary: "记录喂食、饮水、排泄、精神状态和异常后，会在这里预览照护重点。",
+    emptySummary: "记录喂食、饮水、排泄、精神状态和异常后，点击生成按钮会整理成状态卡。",
     familyMessage: "生成后可直接发给家人，统一喂食、用药、清理和复查准备。",
     visualEmptyTitle: "Pet Status",
     visualEmptySubtitle: "饮食 · 排泄 · 精神",
@@ -372,6 +372,13 @@ function setText(selector, value) {
   if (node) node.textContent = value;
 }
 
+function setGenerationSource(label, state = "") {
+  const node = $("#generationSource");
+  if (!node) return;
+  node.textContent = label;
+  node.className = `source-badge ${state}`.trim();
+}
+
 function riskName(key) {
   return modeFor().risks[key] || careModes.elder.risks[key] || key;
 }
@@ -513,6 +520,7 @@ function setProgress(active) {
   btn.classList.add("loading");
   btn.disabled = true;
   shortcut.disabled = true;
+  setGenerationSource("调用中", "loading");
   $("#progressText").textContent = progressSteps[idx];
   clearInterval(state.progressTimer);
   state.progressTimer = setInterval(() => {
@@ -535,7 +543,7 @@ async function applySample(key) {
   disableResultActions();
   updateTopTitle();
   await Promise.all([loadMemories(), loadHistory()]);
-  updateDraftFromInput();
+  renderDraftShell(currentSubject());
 }
 
 function newHandoff() {
@@ -559,6 +567,7 @@ function newHandoff() {
 function disableResultActions() {
   $("#copyMessageBtn").disabled = true;
   $("#speakBtn").disabled = true;
+  $("#copyInlineBtn").disabled = true;
 }
 
 async function loadMemories() {
@@ -900,6 +909,7 @@ function setupUploads() {
 }
 
 async function analyze() {
+  clearTimeout(state.draftTimer);
   setProgress(true);
   const wantsVisual = $("#visualToggle").checked;
   const form = new FormData();
@@ -925,6 +935,7 @@ async function analyze() {
     if (wantsVisual) generateVisualAsync(data.card);
     toast(data.ok ? "交接卡已生成" : "已显示兜底结果");
   } catch (error) {
+    setGenerationSource("生成失败", "failed");
     toast(`生成失败：${error.message}`);
   } finally {
     setProgress(false);
@@ -940,7 +951,9 @@ function imageSrc(card) {
 function renderResult(card, warnings = []) {
   const mode = modeFor();
   state.lastCard = card;
+  setGenerationSource("API 已生成", "generated");
   $("#copyMessageBtn").disabled = false;
+  $("#copyInlineBtn").disabled = false;
   $("#speakBtn").disabled = false;
   $("#careStatus").textContent = card.care_status || "需确认";
   $("#cardDate").textContent = card.date || "今日";
@@ -1113,9 +1126,10 @@ function updateDraftFromInput() {
 function renderDraftShell(subject) {
   const mode = modeFor();
   renderPreview({
+    source_label: "待生成",
     care_subject: subject,
     date: "今日",
-    care_status: "输入预览",
+    care_status: "待生成",
     summary: mode.emptySummary,
     completed: [],
     to_confirm: [],
@@ -1132,7 +1146,8 @@ function renderDraftShell(subject) {
 
 function renderPreview(card) {
   const mode = modeFor();
-  $("#careStatus").textContent = card.care_status || "输入预览";
+  setGenerationSource(card.source_label || "输入预览", card.source_state || "");
+  $("#careStatus").textContent = card.care_status || "待生成";
   $("#cardDate").textContent = card.date || "今日";
   $("#cardSubject").textContent = mode.summaryTitle(card.care_subject || currentSubject());
   $("#summaryText").textContent = card.summary || "";
@@ -1298,14 +1313,20 @@ async function generateVisualAsync(card) {
       state.lastCard.visual_image_b64 = data.visual_image_b64;
       renderVisual(state.lastCard);
       toast("信息图已生成");
+    } else if (data.visual_fallback_svg) {
+      state.lastCard.visual_fallback_svg = data.visual_fallback_svg;
+      renderVisual(state.lastCard);
+      toast("交接卡已生成，AI 图片使用备用图");
     } else {
-      $("#visualBadge").textContent = "备用图";
-      toast((data.warnings || ["信息图生成较慢，已保留备用图"])[0]);
+      renderVisual(state.lastCard);
+      $("#visualBadge").textContent = imageSrc(state.lastCard) ? "备用图" : "待生成";
+      toast("交接卡已生成，AI 图片使用备用图");
     }
   } catch (error) {
     if (state.lastCard === currentCard) {
-      $("#visualBadge").textContent = "备用图";
-      toast(`信息图生成失败：${error.message}`);
+      renderVisual(state.lastCard);
+      $("#visualBadge").textContent = imageSrc(state.lastCard) ? "备用图" : "待生成";
+      toast("交接卡已生成，AI 图片暂不可用");
     }
   }
 }
@@ -1401,7 +1422,9 @@ function setupEvents() {
       $("#sceneSelect").value = button.dataset.scene;
       updateTopTitle();
       await Promise.all([loadMemories(), loadHistory()]);
-      updateDraftFromInput();
+      state.lastCard = null;
+      disableResultActions();
+      renderDraftShell(currentSubject());
     });
   });
   $("#sceneSelect").addEventListener("change", (event) => applySample(event.target.value));
@@ -1418,7 +1441,9 @@ function setupEvents() {
   $("#subjectInput").addEventListener("change", async () => {
     updateTopTitle();
     await Promise.all([loadMemories(), loadHistory()]);
-    updateDraftFromInput();
+    state.lastCard = null;
+    disableResultActions();
+    renderDraftShell(currentSubject());
   });
   $("#subjectInput").addEventListener("input", () => {
     updateTopTitle();
@@ -1454,7 +1479,6 @@ function scheduleDraftUpdate() {
   state.lastCard = null;
   disableResultActions();
   clearTimeout(state.draftTimer);
-  state.draftTimer = setTimeout(updateDraftFromInput, 220);
 }
 
 function setupVideoEvents() {
@@ -1516,7 +1540,7 @@ async function init() {
   await loadSamples();
   updateTopTitle();
   await Promise.all([loadMemories(), loadHistory()]);
-  updateDraftFromInput();
+  renderDraftShell(currentSubject());
 }
 
 init().catch((error) => toast(error.message));

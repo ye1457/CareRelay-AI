@@ -1,0 +1,244 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - complementary "CareRelay navigation" [ref=e3]:
+      - generic [ref=e4]:
+        - img "CareRelay AI logo" [ref=e5]
+        - generic [ref=e6]:
+          - strong [ref=e7]: CareRelay AI
+          - generic [ref=e8]: 家庭照护交接
+      - button "新交接" [ref=e9] [cursor=pointer]
+      - generic [ref=e10]:
+        - generic [ref=e11]: 照护对象
+        - generic [ref=e12]:
+          - button "爷 爷爷 老人照护" [ref=e13] [cursor=pointer]:
+            - generic [ref=e14]: 爷
+            - generic [ref=e15]:
+              - strong [ref=e16]: 爷爷
+              - generic [ref=e17]: 老人照护
+          - button "宝 宝宝 喂养睡眠" [ref=e18] [cursor=pointer]:
+            - generic [ref=e19]: 宝
+            - generic [ref=e20]:
+              - strong [ref=e21]: 宝宝
+              - generic [ref=e22]: 喂养睡眠
+          - button "猫 小猫 宠物照护" [ref=e23] [cursor=pointer]:
+            - generic [ref=e24]: 猫
+            - generic [ref=e25]:
+              - strong [ref=e26]: 小猫
+              - generic [ref=e27]: 宠物照护
+      - navigation "功能导航" [ref=e28]:
+        - button "今日交接" [ref=e29] [cursor=pointer]:
+          - generic [ref=e31]: 今日交接
+        - button "历史" [ref=e32] [cursor=pointer]:
+          - generic [ref=e34]: 历史
+        - button "知识库" [ref=e35] [cursor=pointer]:
+          - generic [ref=e37]: 知识库
+        - button "家属" [ref=e38] [cursor=pointer]:
+          - generic [ref=e40]: 家属
+        - button "视频" [ref=e41] [cursor=pointer]:
+          - generic [ref=e43]: 视频
+      - generic [ref=e46]: 本地服务在线
+    - generic [ref=e47]:
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - generic [ref=e50]: 今天 · AI 交接
+          - heading "爷爷的今日照护" [level=1] [ref=e51]
+        - generic [ref=e52]:
+          - button "复制家属消息" [ref=e53] [cursor=pointer]
+          - button "语音播报" [ref=e54] [cursor=pointer]
+          - button "生成交接卡" [ref=e55] [cursor=pointer]
+      - generic [ref=e57]:
+        - region "今日记录" [ref=e58]:
+          - generic [ref=e59]:
+            - generic [ref=e60]:
+              - generic [ref=e61]: Composer
+              - heading "今日记录" [level=2] [ref=e62]
+            - generic [ref=e63]:
+              - checkbox "AI 图片" [ref=e64]
+              - generic [ref=e65]: AI 图片
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - generic [ref=e68]: 对象
+              - textbox "对象" [ref=e69]: 爷爷
+            - generic [ref=e70]:
+              - generic [ref=e71]: 场景
+              - combobox "场景" [ref=e72]:
+                - option "老人" [selected]
+                - option "宝宝"
+                - option "宠物"
+          - generic "样例记录" [ref=e73]:
+            - button "老人样例" [ref=e74] [cursor=pointer]
+            - button "宝宝样例" [ref=e75] [cursor=pointer]
+            - button "宠物样例" [ref=e76] [cursor=pointer]
+          - generic "场景快速录入" [ref=e77]:
+            - generic [ref=e78]:
+              - generic [ref=e79]: 老人快速记录
+              - generic [ref=e80]: 把用药、生命体征、进食和复诊补成可交接记录。
+            - generic [ref=e81]:
+              - button "用药" [ref=e82] [cursor=pointer]
+              - button "血压" [ref=e83] [cursor=pointer]
+              - button "进食" [ref=e84] [cursor=pointer]
+              - button "睡眠" [ref=e85] [cursor=pointer]
+              - button "复诊" [ref=e86] [cursor=pointer]
+              - button "异常" [ref=e87] [cursor=pointer]
+          - generic [ref=e88]: 照护记录
+          - generic [ref=e89]:
+            - textbox "照护记录" [ref=e90]: 测试输入：晚上需要确认是否吃药，明天准备复诊材料。
+            - generic [ref=e91]:
+              - button "录音" [ref=e92] [cursor=pointer]:
+                - generic [ref=e94]: 录音
+              - generic "上传音频" [ref=e95]:
+                - generic [ref=e97]: 音频
+              - generic "上传图片" [ref=e98]:
+                - generic [ref=e100]: 图片
+          - generic [ref=e101]:
+            - generic [ref=e102]:
+              - strong [ref=e103]: 语音
+              - generic [ref=e104]: 未录音
+            - generic [ref=e105]:
+              - strong [ref=e106]: 图片
+              - generic [ref=e107]: 未上传
+          - button "生成今日交接卡" [ref=e108] [cursor=pointer]:
+            - generic [ref=e109]: 生成今日交接卡
+        - region "今日交接卡" [ref=e111]:
+          - generic [ref=e112]:
+            - generic [ref=e113]:
+              - generic [ref=e114]: Artifact
+              - heading "今日交接卡" [level=2] [ref=e115]
+            - generic [ref=e116]:
+              - generic [ref=e117]: API 已生成
+              - generic [ref=e118]: 需确认
+              - generic [ref=e119]: 2026-05-25
+          - generic [ref=e120]:
+            - generic [ref=e121]:
+              - strong [ref=e123]: "64"
+              - generic [ref=e124]: 今日指数
+            - generic [ref=e125]:
+              - heading "爷爷今日交接" [level=3] [ref=e126]
+              - paragraph [ref=e127]: 爷爷今日交接已整理：已完成2项、待确认1项、下一步1项。请优先处理高优先级确认事项，并把执行结果同步给家人。
+          - generic "交接概览" [ref=e128]:
+            - generic [ref=e129]:
+              - generic [ref=e130]: "2"
+              - generic [ref=e131]: 已完成
+            - generic [ref=e132]:
+              - generic [ref=e133]: "1"
+              - generic [ref=e134]: 待确认
+            - generic [ref=e135]:
+              - generic [ref=e136]: "1"
+              - generic [ref=e137]: 下一步
+            - generic [ref=e138]:
+              - generic [ref=e139]: "4"
+              - generic [ref=e140]: 风险提示
+          - generic [ref=e141]:
+            - generic [ref=e142]:
+              - generic [ref=e143]: 今日照护重点
+              - generic [ref=e144]: 老人页面优先把用药、复诊和异常交接清楚。
+            - generic [ref=e145]:
+              - article [ref=e146]:
+                - generic [ref=e147]: 药
+                - generic [ref=e148]:
+                  - strong [ref=e149]: 用药确认
+                  - paragraph [ref=e150]: 药名、剂量、时间和是否已服用要单独交接，避免漏服或重复。
+              - article [ref=e151]:
+                - generic [ref=e152]: 诊
+                - generic [ref=e153]:
+                  - strong [ref=e154]: 复诊准备
+                  - paragraph [ref=e155]: 医保卡、病历、检查单和出发时间放在下一步里，接手人能直接执行。
+              - article [ref=e156]:
+                - generic [ref=e157]: 异
+                - generic [ref=e158]:
+                  - strong [ref=e159]: 异常观察
+                  - paragraph [ref=e160]: 血压、血糖、疼痛、发热或精神变化会被放到风险与追问区域。
+          - generic [ref=e161]:
+            - generic [ref=e162]:
+              - generic [ref=e163]: 家属消息
+              - button "复制" [ref=e164] [cursor=pointer]
+            - paragraph [ref=e165]: 【爷爷今日交接】已完成：08:00 已完成一次照护动作；中午已完成进食/日常照护记录。待确认：确认是否吃药。下一步：明天准备复诊材料。药物相关按医嘱执行。
+          - generic [ref=e166]:
+            - generic [ref=e167]:
+              - generic [ref=e169]: 必须确认
+              - generic [ref=e240]:
+                - generic [ref=e241]:
+                  - checkbox "确认是否吃药" [ref=e242]
+                  - generic [ref=e243]: 确认是否吃药
+                - generic [ref=e244]:
+                  - generic [ref=e245]: 尽快
+                  - generic [ref=e246]: 现负责监护人
+                  - generic [ref=e247]: 高优先级
+                - paragraph [ref=e248]: 不确定信息先确认再执行；涉及药物请按医嘱或联系医生确认。
+            - generic [ref=e174]:
+              - generic [ref=e176]: 下一步
+              - generic [ref=e249]:
+                - generic [ref=e250]:
+                  - checkbox "明天准备复诊材料" [ref=e251]
+                  - generic [ref=e252]: 明天准备复诊材料
+                - generic [ref=e253]:
+                  - generic [ref=e254]: 明天
+                  - generic [ref=e255]: 现负责监护人
+                  - generic [ref=e256]: 中优先级
+          - generic [ref=e181]:
+            - generic [ref=e183]: 时间线
+            - generic [ref=e184]:
+              - generic [ref=e257]:
+                - generic [ref=e258]: 08:00
+                - generic [ref=e259]:
+                  - heading "08:00 已完成一次照护动作" [level=4] [ref=e260]
+                  - paragraph [ref=e261]: 文本记录
+              - generic [ref=e262]:
+                - generic [ref=e263]: 12:00
+                - generic [ref=e264]:
+                  - heading "中午已完成进食/日常照护记录" [level=4] [ref=e265]
+                  - paragraph [ref=e266]: 文本记录
+              - generic [ref=e267]:
+                - generic [ref=e268]: 尽快
+                - generic [ref=e269]:
+                  - heading "确认是否吃药" [level=4] [ref=e270]
+                  - paragraph [ref=e271]: 不确定信息先确认再执行；涉及药物请按医嘱或联系医生确认。
+              - generic [ref=e272]:
+                - generic [ref=e273]: 明天
+                - generic [ref=e274]:
+                  - heading "明天准备复诊材料" [level=4] [ref=e275]
+                  - paragraph
+        - complementary "交接详情" [ref=e190]:
+          - generic [ref=e191]:
+            - generic [ref=e192]:
+              - generic [ref=e193]: 信息图
+              - generic [ref=e194]: 备用图
+            - img "CareRelay 交接信息图" [ref=e276]
+          - generic [ref=e199]:
+            - generic [ref=e201]: 风险
+            - generic [ref=e202]:
+              - generic [ref=e277]:
+                - generic [ref=e278]: 药物
+                - strong [ref=e281]: "78"
+              - generic [ref=e282]:
+                - generic [ref=e283]: 复诊
+                - strong [ref=e286]: "72"
+              - generic [ref=e287]:
+                - generic [ref=e288]: 异常
+                - strong [ref=e291]: "58"
+              - generic [ref=e292]:
+                - generic [ref=e293]: 沟通
+                - strong [ref=e296]: "68"
+          - generic [ref=e223]:
+            - generic [ref=e225]: 已完成
+            - generic [ref=e226]:
+              - generic [ref=e297]: 08:00 08:00 已完成一次照护动作
+              - generic [ref=e298]: 12:00 中午已完成进食/日常照护记录
+          - generic [ref=e228]:
+            - generic [ref=e229]:
+              - generic [ref=e230]:
+                - generic [ref=e231]: Emotion
+                - strong [ref=e232]: 轻度焦虑但可控
+              - generic [ref=e234]: "62"
+            - paragraph [ref=e299]: 已将不确定事项单独列出，先确认再执行可以明显降低重复沟通和照护风险。
+            - generic [ref=e300]:
+              - generic [ref=e301]: 晚间服药情况不确定
+              - generic [ref=e302]: 复诊前准备事项需要同步
+              - generic [ref=e303]: 异常指标缺少具体数值
+          - generic [ref=e235]:
+            - generic [ref=e237]: 追问
+            - generic [ref=e238]:
+              - generic [ref=e304]: 今晚由谁确认服药情况？
+              - generic [ref=e305]: 下午异常指标是否有具体数值？
+              - generic [ref=e306]: 明天复诊谁陪同？
+  - generic [ref=e307]: 交接卡已生成

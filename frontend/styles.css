@@ -1000,6 +1000,33 @@ body[data-scene="pet"] .artifact-panel {
   font-weight: 750;
 }
 
+.source-badge {
+  min-height: 28px;
+  padding: 5px 9px;
+  border-radius: 99px;
+  color: var(--muted);
+  background: var(--ink-soft);
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.source-badge.loading {
+  color: #70470c;
+  background: var(--amber-soft);
+}
+
+.source-badge.generated {
+  color: #155840;
+  background: var(--green-soft);
+}
+
+.source-badge.failed {
+  color: #8d352e;
+  background: var(--red-soft);
+}
+
 .status-badge {
   min-height: 28px;
   padding: 5px 9px;

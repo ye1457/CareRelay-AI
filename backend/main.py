@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import CACHE_DIR, DATA_DIR, PROJECT_ROOT, UPLOAD_DIR
-from .fallback import SAMPLE_INPUTS, build_offline_card
+from .fallback import SAMPLE_INPUTS, build_offline_card, fallback_svg
 from .memory import MemoryStore
 from .pipeline import CareRelayPipeline
 from .schemas import AnalyzeResult, CareRelayCard, MemoryCreateRequest, MemoryDeleteResult, MemoryListResult
@@ -115,17 +115,25 @@ def generate_visual(card: CareRelayCard) -> dict:
             return {
                 "ok": False,
                 "visual_image_b64": "",
+                "visual_fallback_svg": fallback_svg(card),
                 "trace": [item.model_dump() for item in trace],
-                "warnings": ["信息图生成未返回图片，已保留本地备用图。"],
+                "warnings": ["AI 图片未返回，已显示本地备用图。"],
             }
         return {
             "ok": True,
             "visual_image_b64": visual_b64,
+            "visual_fallback_svg": "",
             "trace": [item.model_dump() for item in trace],
             "warnings": [],
         }
     except Exception as exc:
-        return {"ok": False, "visual_image_b64": "", "trace": [], "warnings": [f"信息图生成失败：{str(exc)[:180]}"]}
+        return {
+            "ok": False,
+            "visual_image_b64": "",
+            "visual_fallback_svg": fallback_svg(card),
+            "trace": [],
+            "warnings": [f"AI 图片生成失败，已显示本地备用图：{str(exc)[:180]}"],
+        }
 
 
 @app.get("/api/history")

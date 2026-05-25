@@ -4,6 +4,7 @@ import importlib.util
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -32,11 +33,15 @@ def get_api_key() -> str:
 
 
 def get_base_url() -> str:
-    return (
+    base_url = (
         os.environ.get("CARE_RELAY_BASE_URL")
         or _load_test_api_value("BASE_URL")
         or "http://123.129.219.111:3000/v1"
     ).rstrip("/")
+    parsed = urlparse(base_url)
+    if parsed.scheme and parsed.netloc and parsed.path in ("", "/"):
+        return f"{base_url}/v1"
+    return base_url
 
 
 @dataclass(frozen=True)
