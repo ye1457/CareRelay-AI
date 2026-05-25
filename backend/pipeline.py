@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from .api_client import APIClient, CareRelayAPIError
 from .fallback import build_offline_card, fallback_svg
 from .memory import MemoryStore
+from .memory_policy import filter_reusable_memory_suggestions, is_reusable_memory_text, normalize_memory_text
 from .schemas import CareRelayCard, CompletedItem, EmotionAnalysis, ModelCall, TimelineItem, TodoItem
 
 
@@ -196,6 +197,7 @@ class CareRelayPipeline:
 
         self._merge_input_extractions(card, combined_text)
         self._apply_safety(card)
+        self._apply_memory_policy(card, combined_text)
 
         if use_visual:
             visual_b64, visual_trace = self.client.generate_image(self._build_visual_prompt(card))
@@ -220,6 +222,9 @@ class CareRelayPipeline:
             "涉及药物、症状、剂量、复诊时，必须使用“按医嘱执行/联系医生确认”的保守表达。"
             "所有不确定信息必须放入 to_confirm。输出必须是严格 JSON，不要 Markdown，不要解释。"
             "交接卡要具体、清晰、内容丰富，优先抽取时间、动作、负责人与待确认原因，禁止空泛套话。"
+            "严格区分短期待办和长期记忆：todos 只放今天、今晚、明天、下一次这类一次性执行事项；"
+            "memory_suggestions 只放可复用的长期规律、偏好、禁忌、每次复诊/睡前/喂药后的固定准备。"
+            "不要把“今晚确认”“明天去做”“今天已完成”“发到家人群”等一次性事项写进 memory_suggestions。"
         )
         user = f"""
 日期:{today}
@@ -238,7 +243,7 @@ abnormal_signals,risk_notes,family_message,voice_briefing,
 interaction_questions,timeline[{{time,label,type,detail}}],
 risk_radar{{medication,appointment,symptom,communication}},
 visual_prompt,confidence,memory_suggestions。
-质量要求: 内容具体清晰；summary写2句；completed/to_confirm/todos各2-5条；timeline至少4条；每条尽量含时间、动作、负责人；不确定事项放to_confirm并说明原因；药物/剂量只写按医嘱执行或联系医生确认；不要医疗诊断。
+质量要求: 内容具体清晰；summary写2句；completed/to_confirm/todos各2-5条；timeline至少4条；每条尽量含时间、动作、负责人；不确定事项放to_confirm并说明原因；药物/剂量只写按医嘱执行或联系医生确认；不要医疗诊断。long_term_watch 只放可复用的长期观察策略，不放今天/明天的一次性计划；memory_suggestions 最多3条，不以“记住：”开头，只输出之后多次生成交接卡仍有价值的经验。
 """.strip()
         trace: list[ModelCall] = []
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
@@ -324,7 +329,7 @@ visual_prompt,confidence,memory_suggestions。
             visual_prompt=raw.get("visual_prompt") or "",
             confidence=_as_float(raw.get("confidence"), 0.78),
             memory_hits=memory_hits,
-            memory_suggestions=_as_list(raw.get("memory_suggestions")),
+            memory_suggestions=filter_reusable_memory_suggestions(_as_list(raw.get("memory_suggestions"))),
             transcript=transcript,
             image_insights=image_insights,
         )
@@ -488,6 +493,21 @@ visual_prompt,confidence,memory_suggestions。
                 merged.insert(0, item)
                 labels.add(item.label)
         return merged[:12]
+
+    def _apply_memory_policy(self, card: CareRelayCard, combined_text: str) -> None:
+        candidates: list[str] = []
+        candidates.extend(card.memory_suggestions)
+        candidates.extend(item.title for item in card.long_term_watch)
+        candidates.extend(self._extract_reusable_memory_candidates(combined_text))
+        card.memory_suggestions = filter_reusable_memory_suggestions(candidates)
+
+    def _extract_reusable_memory_candidates(self, text: str) -> list[str]:
+        candidates: list[str] = []
+        for sentence in self._split_input_sentences(text):
+            value = normalize_memory_text(sentence)
+            if is_reusable_memory_text(value):
+                candidates.append(value)
+        return candidates[:6]
 
     def _apply_safety(self, card: CareRelayCard) -> None:
         joined = " ".join([card.summary, card.family_message, *card.risk_notes, *(item.title for item in card.todos)])

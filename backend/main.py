@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import CACHE_DIR, DATA_DIR, PROJECT_ROOT, UPLOAD_DIR
 from .fallback import SAMPLE_INPUTS, build_offline_card, fallback_svg
 from .memory import MemoryStore
+from .memory_policy import is_short_term_todo_text, normalize_memory_text
 from .pipeline import CareRelayPipeline
 from .schemas import AnalyzeResult, CareRelayCard, MemoryCreateRequest, MemoryDeleteResult, MemoryListResult
 
@@ -154,9 +155,12 @@ def offline_card(care_subject: str = "爷爷") -> dict:
 
 @app.post("/api/memory", response_model=MemoryListResult)
 def create_memory(payload: MemoryCreateRequest) -> MemoryListResult:
-    if not payload.text.strip():
+    text = normalize_memory_text(payload.text)
+    if not text:
         raise HTTPException(status_code=400, detail="memory text is empty")
-    memory_store.add_memory(payload.user_id, payload.care_subject, payload.text.strip(), payload.label)
+    if is_short_term_todo_text(text):
+        raise HTTPException(status_code=400, detail="这更像一次性的今日待办，已保留在交接卡中，不会写入长期记忆。")
+    memory_store.add_memory(payload.user_id, payload.care_subject, text, payload.label)
     memories = memory_store.list_memories(payload.user_id, payload.care_subject)
     return MemoryListResult(ok=True, memories=memories)
 

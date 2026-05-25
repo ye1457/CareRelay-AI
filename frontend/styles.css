@@ -327,6 +327,19 @@ h3 {
   background: var(--surface);
 }
 
+.subject-option.active {
+  border-color: rgba(27, 127, 98, 0.42);
+  background: #ffffff;
+  box-shadow:
+    inset 3px 0 0 var(--green),
+    0 0 0 2px rgba(27, 127, 98, 0.08);
+}
+
+.subject-option.current-subject-option {
+  border-color: rgba(27, 127, 98, 0.52);
+  background: var(--green-soft);
+}
+
 .subject-option strong,
 .subject-option small {
   display: block;
@@ -339,6 +352,11 @@ h3 {
   margin-top: 2px;
   color: var(--muted);
   font-size: 12px;
+}
+
+.subject-option.current-subject-option small {
+  color: var(--green);
+  font-weight: 850;
 }
 
 .avatar {

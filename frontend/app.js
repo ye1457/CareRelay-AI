@@ -185,7 +185,7 @@ const careModes = {
       desc: "适合保存奶量范围、睡眠节律、安抚方式、过敏或儿保准备。",
       placeholder: "例如：宝宝睡前需要先拍嗝，再抱走动 5 分钟比较容易入睡。",
       empty: "把奶量范围、入睡习惯、安抚方式或过敏不适保存下来，之后会自动用于宝宝交接。",
-      suggestionEmpty: "生成宝宝节律卡后，CareRelay 会把稳定习惯和异常观察建议保存到这里。",
+      suggestionEmpty: "生成宝宝节律卡后，CareRelay 只会把稳定习惯和可复用观察建议推荐到这里。",
       labels: { care: "节律", medical: "不适", preference: "安抚" },
       meta: {
         medical: {
@@ -284,7 +284,7 @@ const careModes = {
       desc: "适合保存饮食偏好、排泄规律、兽医用药、外出和清理习惯。",
       placeholder: "例如：小猫不喜欢鱼味罐头，喂药后要给一点冻干奖励。",
       empty: "把食物偏好、排泄规律、用药复查或外出习惯保存下来，之后会自动用于宠物交接。",
-      suggestionEmpty: "生成宠物状态卡后，CareRelay 会把稳定习惯和异常观察建议保存到这里。",
+      suggestionEmpty: "生成宠物状态卡后，CareRelay 只会把稳定习惯和可复用观察建议推荐到这里。",
       labels: { care: "生活", medical: "兽医", preference: "偏好" },
       meta: {
         medical: {
@@ -401,6 +401,81 @@ function sceneAvatar(scene, subject) {
   return subject.slice(0, 1) || "人";
 }
 
+function subjectAvatarClass(scene) {
+  if (scene === "baby") return "baby";
+  if (scene === "pet") return "pet";
+  return "elder";
+}
+
+function setSubjectOptionContent(button, scene, subject, metaText) {
+  button.dataset.subject = subject;
+  button.dataset.scene = scene;
+  button.innerHTML = `
+    <span class="avatar ${subjectAvatarClass(scene)}">${escapeHtml(sceneAvatar(scene, subject))}</span>
+    <span>
+      <strong>${escapeHtml(subject)}</strong>
+      <small>${escapeHtml(metaText || sceneLabel(scene))}</small>
+    </span>
+  `;
+}
+
+function findSubjectOption(scene, subject, { includeDraft = true } = {}) {
+  const normalized = (subject || "").trim();
+  return $$(".subject-option").find(
+    (button) =>
+      button.dataset.scene === scene &&
+      (button.dataset.subject || "").trim() === normalized &&
+      (includeDraft || button.dataset.draftSubject !== "true"),
+  );
+}
+
+function placeSubjectOption(button, scene) {
+  const list = $(".subject-list");
+  if (!list) return;
+  const sameSceneOptions = $$(".subject-option").filter((item) => item !== button && item.dataset.scene === scene);
+  const lastSameScene = sameSceneOptions[sameSceneOptions.length - 1];
+  if (lastSameScene) lastSameScene.after(button);
+  else list.append(button);
+}
+
+function syncSubjectSidebar({ persist = false } = {}) {
+  const list = $(".subject-list");
+  if (!list) return;
+  const subject = currentSubject();
+  const scene = currentScene();
+  let activeOption = findSubjectOption(scene, subject, { includeDraft: false });
+  const draftOption = list.querySelector("[data-draft-subject='true']");
+
+  if (activeOption) {
+    if (draftOption && draftOption !== activeOption) draftOption.remove();
+  } else {
+    activeOption = draftOption || document.createElement("button");
+    activeOption.type = "button";
+    activeOption.className = "subject-option current-subject-option";
+    activeOption.dataset.draftSubject = persist ? "" : "true";
+    if (persist) {
+      delete activeOption.dataset.draftSubject;
+      activeOption.dataset.customSubject = "true";
+    }
+    setSubjectOptionContent(activeOption, scene, subject, `${sceneLabel(scene)} · 当前`);
+    placeSubjectOption(activeOption, scene);
+  }
+
+  if (persist && activeOption.dataset.draftSubject === "true") {
+    delete activeOption.dataset.draftSubject;
+    activeOption.dataset.customSubject = "true";
+  }
+
+  $$(".subject-option").forEach((button) => {
+    const isActive = button === activeOption;
+    const isCurrentSubject = button.dataset.customSubject === "true" || button.dataset.draftSubject === "true";
+    button.classList.toggle("active", isActive);
+    button.classList.toggle("current-subject-option", isActive && isCurrentSubject);
+    const small = button.querySelector("small");
+    if (small) small.textContent = isActive ? `${sceneLabel(button.dataset.scene)} · 当前` : sceneLabel(button.dataset.scene);
+  });
+}
+
 function updateTopTitle() {
   const subject = currentSubject();
   const scene = currentScene();
@@ -431,9 +506,7 @@ function updateTopTitle() {
   $("#profileMeta").textContent = `${sceneLabel(scene)} · 家庭交接`;
   $("#profileAvatar").textContent = sceneAvatar(scene, subject);
   $("#profileAvatar").className = `avatar ${scene === "baby" ? "baby" : scene === "pet" ? "pet" : "elder"}`;
-  $$(".subject-option").forEach((button) => {
-    button.classList.toggle("active", button.dataset.scene === scene);
-  });
+  syncSubjectSidebar();
   renderQuickInputs();
   renderModeFocus();
   updateMemorySceneCopy();
@@ -673,16 +746,72 @@ function suggestionMeta(text = "") {
   };
 }
 
+const shortTermMemoryPattern =
+  /(今天|今日|今晚|明天|明早|明晚|后天|本周|这周|这次|本次|刚刚|现在|马上|尽快|稍后|待会儿|待会|下一次|下次|早上|上午|中午|下午|晚上|\d{1,2}\s*(?:点|:|：)\s*\d{0,2}|\d{4}[-/年]\d{1,2}|\d{1,2}[月/]\d{1,2}|周[一二三四五六日天])/;
+const boundedMemoryPattern = /((?:未来|接下来|连续)\s*\d+\s*(?:天|周|月)|(?:未来|接下来|连续)[一二三四五六七八九十]+(?:天|周|月))/;
+const oneOffMemoryPattern = /(待确认|还没|未确认|确认是否|有没有|发到家人群|转发|今天已|已完成|已做|临时|一次)/;
+const durableMemoryPattern =
+  /(每次|每当|每天|每日|每晚|每早|每周|每月|固定|长期|通常|一般|经常|习惯|规律|偏好|喜欢|不喜欢|过敏|忌口|禁忌|避免|不能|不要|少盐|少油|少糖|睡前|饭前|饭后|起床后|复诊前|复查前|复诊后|复查后|外出前|喂药后|洗澡后|入睡前|安抚方式|奶量范围|食物偏好|排泄规律|医保卡|病历本|航空箱|处方单)/;
+const hardRecurringMemoryPattern = /(每次|每当|每天|每日|每晚|每早|每周|每月|固定|长期|通常|一般|经常|习惯|规律|偏好)/;
+
+function normalizeMemoryCandidate(text = "") {
+  let value = String(text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[。；;，,\s]+|[。；;，,\s]+$/g, "");
+  let next = value.replace(/^(?:记住|保存|建议保存|长期记住|长期记忆|可保存为长期记忆)[：:\s]*/, "").trim();
+  while (next !== value) {
+    value = next.replace(/^[。；;，,\s]+|[。；;，,\s]+$/g, "");
+    next = value.replace(/^(?:记住|保存|建议保存|长期记住|长期记忆|可保存为长期记忆)[：:\s]*/, "").trim();
+  }
+  return value;
+}
+
+function isShortTermMemoryCandidate(text = "") {
+  const value = normalizeMemoryCandidate(text);
+  if (!value) return false;
+  if (boundedMemoryPattern.test(value) && !hardRecurringMemoryPattern.test(value)) return true;
+  return (shortTermMemoryPattern.test(value) || oneOffMemoryPattern.test(value)) && !hardRecurringMemoryPattern.test(value);
+}
+
+function isLongTermMemoryCandidate(text = "") {
+  const value = normalizeMemoryCandidate(text);
+  return value.length >= 4 && durableMemoryPattern.test(value) && !isShortTermMemoryCandidate(value);
+}
+
+function longTermSuggestions(items = []) {
+  const seen = new Set();
+  return items
+    .map((item) => normalizeMemoryCandidate(item))
+    .filter((item) => {
+      if (!isLongTermMemoryCandidate(item)) return false;
+      const key = item.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 6);
+}
+
 function updateSubjectHints() {
   const hint = $("#memorySubjectHint");
   if (hint) hint.textContent = `当前对象：${currentSubject()} · ${modeFor().label}。`;
 }
 
 async function saveMemory(text) {
+  const normalizedText = normalizeMemoryCandidate(text);
+  if (!normalizedText) {
+    toast("请先填写内容");
+    return false;
+  }
+  if (isShortTermMemoryCandidate(normalizedText)) {
+    toast("这是今日短期待办，不会保存到长期记忆");
+    return false;
+  }
   const payload = {
     user_id: "demo_user",
     care_subject: currentSubject(),
-    text,
+    text: normalizedText,
     label: "confirmed",
   };
   const res = await fetch("/api/memory", {
@@ -690,10 +819,18 @@ async function saveMemory(text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("保存失败");
+  if (!res.ok) {
+    let message = "保存失败";
+    try {
+      const data = await res.json();
+      message = data.detail || message;
+    } catch (_) {}
+    throw new Error(message);
+  }
   const data = await res.json();
   renderMemoryHits(data.memories || []);
-  toast("已保存到知识库");
+  toast("已保存到长期记忆");
+  return true;
 }
 
 async function saveManualMemory() {
@@ -702,8 +839,12 @@ async function saveManualMemory() {
     toast("请先填写内容");
     return;
   }
-  await saveMemory(text);
-  $("#manualMemoryText").value = "";
+  try {
+    const saved = await saveMemory(text);
+    if (saved) $("#manualMemoryText").value = "";
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function deleteMemory(id) {
@@ -909,6 +1050,7 @@ function setupUploads() {
 }
 
 async function analyze() {
+  syncSubjectSidebar({ persist: true });
   clearTimeout(state.draftTimer);
   setProgress(true);
   const wantsVisual = $("#visualToggle").checked;
@@ -1333,7 +1475,8 @@ async function generateVisualAsync(card) {
 
 function renderSuggestions(items) {
   const node = $("#memorySuggestions");
-  if (!items.length) {
+  const suggestions = longTermSuggestions(items);
+  if (!suggestions.length) {
     node.innerHTML = `
       <div class="suggestion-empty-card">
         <span class="memory-card-icon care">AI</span>
@@ -1345,7 +1488,7 @@ function renderSuggestions(items) {
     `;
     return;
   }
-  node.innerHTML = items
+  node.innerHTML = suggestions
     .map((item) => {
       const meta = suggestionMeta(item);
       return `
@@ -1360,7 +1503,7 @@ function renderSuggestions(items) {
           <p>${escapeHtml(item)}</p>
           <div class="suggestion-card-actions">
             <span>${meta.hint}</span>
-            <button type="button" data-save-memory="${escapeHtml(item)}">保存为记忆</button>
+            <button type="button" data-save-memory="${escapeHtml(item)}">保存为长期记忆</button>
           </div>
         </article>
       `;
@@ -1416,16 +1559,18 @@ function showPage(pageId) {
 
 function setupEvents() {
   $$("[data-sample]").forEach((button) => button.addEventListener("click", () => applySample(button.dataset.sample)));
-  $$(".subject-option").forEach((button) => {
-    button.addEventListener("click", async () => {
+  $(".subject-list")?.addEventListener("click", async (event) => {
+    const button = event.target?.closest?.(".subject-option");
+    if (button) {
       $("#subjectInput").value = button.dataset.subject;
       $("#sceneSelect").value = button.dataset.scene;
+      syncSubjectSidebar({ persist: true });
       updateTopTitle();
       await Promise.all([loadMemories(), loadHistory()]);
       state.lastCard = null;
       disableResultActions();
       renderDraftShell(currentSubject());
-    });
+    }
   });
   $("#sceneSelect").addEventListener("change", (event) => applySample(event.target.value));
   $("#newHandoffBtn").addEventListener("click", newHandoff);
@@ -1439,6 +1584,7 @@ function setupEvents() {
   $("#saveManualMemoryBtn").addEventListener("click", saveManualMemory);
   $("#careText").addEventListener("input", scheduleDraftUpdate);
   $("#subjectInput").addEventListener("change", async () => {
+    syncSubjectSidebar({ persist: true });
     updateTopTitle();
     await Promise.all([loadMemories(), loadHistory()]);
     state.lastCard = null;
@@ -1446,6 +1592,8 @@ function setupEvents() {
     renderDraftShell(currentSubject());
   });
   $("#subjectInput").addEventListener("input", () => {
+    state.lastCard = null;
+    disableResultActions();
     updateTopTitle();
     clearTimeout(state.subjectTimer);
     state.subjectTimer = setTimeout(() => {
@@ -1470,7 +1618,13 @@ function setupEvents() {
     }
     const saveText = event.target?.dataset?.saveMemory;
     const deleteId = event.target?.dataset?.deleteMemory;
-    if (saveText) await saveMemory(saveText);
+    if (saveText) {
+      try {
+        await saveMemory(saveText);
+      } catch (error) {
+        toast(error.message);
+      }
+    }
     if (deleteId) await deleteMemory(deleteId);
   });
 }
