@@ -767,6 +767,72 @@ body[data-scene="pet"] .artifact-panel {
   background: var(--green-soft);
 }
 
+.care-record-log {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid rgba(27, 127, 98, 0.24);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(228, 244, 237, 0.72), #fff);
+}
+
+.care-record-head {
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.care-record-head span {
+  font-size: 13px;
+  font-weight: 880;
+}
+
+.care-record-head small {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.care-record-list {
+  display: grid;
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.care-record-item {
+  min-height: 42px;
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.care-record-item > span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #155840;
+  background: var(--green-soft);
+  font-size: 12px;
+  font-weight: 880;
+}
+
+.care-record-item p {
+  margin: 0;
+  color: #263630;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
 .care-text-label {
   display: block;
   margin-bottom: 7px;

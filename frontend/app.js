@@ -333,6 +333,8 @@ const state = {
   subjectTimer: null,
   videoStream: null,
   progressTimer: null,
+  careEntries: [],
+  careEntrySeq: 0,
 };
 
 const progressSteps = [
@@ -624,6 +626,7 @@ async function applySample(key) {
   $("#subjectInput").value = sample.subject;
   $("#careText").value = sample.text;
   state.lastCard = null;
+  resetCareEntries();
   disableResultActions();
   updateTopTitle();
   await Promise.all([loadMemories(), loadHistory()]);
@@ -633,6 +636,7 @@ async function applySample(key) {
 function newHandoff() {
   const subject = currentSubject();
   $("#careText").value = "";
+  resetCareEntries();
   state.lastCard = null;
   state.audioBlob = null;
   state.imageFile = null;
@@ -876,6 +880,183 @@ function appendDecodedText(title, content) {
   textarea.dispatchEvent(new Event("input"));
 }
 
+function normalizeCareRecordText(text = "") {
+  return String(text)
+    .replace(/【[^】]+】/g, "")
+    .replace(/[，。、“”‘’；：？！,.!?;:\s]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function bigrams(value) {
+  const chars = Array.from(value);
+  if (chars.length < 2) return new Set(chars);
+  const set = new Set();
+  for (let index = 0; index < chars.length - 1; index += 1) {
+    set.add(`${chars[index]}${chars[index + 1]}`);
+  }
+  return set;
+}
+
+function normalizedCareSignal(value) {
+  return String(value || "")
+    .replace(/[：]/g, ":")
+    .replace(/[／]/g, "/")
+    .toLowerCase()
+    .trim();
+}
+
+function extractCareRecordSignals(text = "") {
+  const value = String(text || "").toLowerCase();
+  const numberMatches =
+    value.match(/\d+(?:[.:：/／]\d+)?|[一二两三四五六七八九十半]+(?=\s*(?:点|时|碗|口|毫升|ml|片|粒|颗|次|分钟|小时|度|℃|斤|克|kg|g))/gi) || [];
+  const numbers = new Set(numberMatches.map(normalizedCareSignal).filter(Boolean));
+  const dates = new Set();
+  const timeSlots = new Set();
+  const collect = (target, matchers) => {
+    matchers.forEach(([name, pattern]) => {
+      if (pattern.test(value)) target.add(name);
+    });
+  };
+  collect(dates, [
+    ["today", /(今天|今日|今早|今晚|今晨|今中午|今下午)/],
+    ["tomorrow", /(明天|明日|明早|明晚|次日|第二天)/],
+    ["yesterday", /(昨天|昨日)/],
+  ]);
+  collect(timeSlots, [
+    ["morning", /(早上|早晨|上午|清晨|今早|明早)/],
+    ["noon", /(中午|午饭|午餐)/],
+    ["afternoon", /(下午|午后|今下午)/],
+    ["evening", /(傍晚|晚上|晚饭|晚餐|睡前|今晚|明晚)/],
+    ["night", /(凌晨|半夜|夜里|夜间)/],
+  ]);
+  return { dates, numbers, timeSlots };
+}
+
+function careSetIntersects(left, right) {
+  return [...left].some((item) => right.has(item));
+}
+
+function careSetIsSubset(left, right) {
+  return [...left].every((item) => right.has(item));
+}
+
+function hasCareRecordSignalConflict(a, b) {
+  const left = extractCareRecordSignals(a);
+  const right = extractCareRecordSignals(b);
+  if (left.dates.size && right.dates.size && !careSetIntersects(left.dates, right.dates)) return true;
+  if (left.timeSlots.size && right.timeSlots.size && !careSetIntersects(left.timeSlots, right.timeSlots)) return true;
+  if (
+    left.numbers.size &&
+    right.numbers.size &&
+    !careSetIsSubset(left.numbers, right.numbers) &&
+    !careSetIsSubset(right.numbers, left.numbers)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function careRecordSimilarity(a, b) {
+  const left = normalizeCareRecordText(a);
+  const right = normalizeCareRecordText(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  const shorter = left.length < right.length ? left : right;
+  const longer = left.length < right.length ? right : left;
+  if (shorter.length >= 8 && longer.includes(shorter)) {
+    return shorter.length / longer.length >= 0.62 ? 0.94 : 0.78;
+  }
+  const leftSet = bigrams(left);
+  const rightSet = bigrams(right);
+  let overlap = 0;
+  leftSet.forEach((item) => {
+    if (rightSet.has(item)) overlap += 1;
+  });
+  return (2 * overlap) / Math.max(1, leftSet.size + rightSet.size);
+}
+
+function isDuplicateCareRecord(text, entries = state.careEntries) {
+  return entries.some((entry) => careRecordSimilarity(text, entry.text) >= 0.86 && !hasCareRecordSignalConflict(text, entry.text));
+}
+
+function careRecordFragments(text = "") {
+  const value = String(text || "").trim();
+  if (!value) return [];
+  const fragments = splitCareSentences(value).filter((item) => normalizeCareRecordText(item).length >= 3);
+  return fragments.length ? fragments : [value];
+}
+
+function prepareCareEntryMerge(text = "") {
+  const pending = [];
+  const duplicates = [];
+  const seen = [...state.careEntries];
+  careRecordFragments(text).forEach((fragment) => {
+    if (isDuplicateCareRecord(fragment, seen)) {
+      duplicates.push(fragment);
+      return;
+    }
+    const entry = {
+      id: `care-${Date.now()}-${state.careEntrySeq + pending.length + 1}`,
+      text: fragment,
+      scene: currentScene(),
+      subject: currentSubject(),
+    };
+    pending.push(entry);
+    seen.push(entry);
+  });
+  return { entries: [...state.careEntries, ...pending], pending, duplicates };
+}
+
+function careEntriesToText(entries = state.careEntries) {
+  return entries.map((entry) => entry.text).join("。\n");
+}
+
+function renderCareEntries() {
+  const panel = $("#careRecordLog");
+  const list = $("#careRecordList");
+  if (!panel || !list) return;
+  panel.classList.toggle("hidden", !state.careEntries.length);
+  setText("#careRecordCount", `${state.careEntries.length} 条`);
+  list.innerHTML = state.careEntries
+    .map(
+      (entry, index) => `
+        <article class="care-record-item">
+          <span>${index + 1}</span>
+          <p>${escapeHtml(entry.text)}</p>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function resetCareEntries() {
+  state.careEntries = [];
+  state.careEntrySeq = 0;
+  renderCareEntries();
+}
+
+function commitCareEntries(entries) {
+  state.careEntries = entries;
+  state.careEntrySeq = Math.max(state.careEntrySeq, entries.length);
+  renderCareEntries();
+}
+
+function clearComposerInput() {
+  $("#careText").value = "";
+  state.audioBlob = null;
+  state.imageFile = null;
+  state.imageInsights = "";
+  state.imageInspected = false;
+  state.audioDecoded = false;
+  $("#audioUpload").value = "";
+  $("#imageUpload").value = "";
+  $("#audioStatus").textContent = "未录音";
+  $("#imageStatus").textContent = "未上传";
+  $("#imagePreview").classList.add("hidden");
+  $("#imageInsightsBox").classList.add("hidden");
+}
+
 async function transcribeAudioFile(fileOrBlob, filename = "care-audio.webm") {
   if (!fileOrBlob || state.audioTranscribing) return;
   const form = new FormData();
@@ -1065,12 +1246,18 @@ function setupUploads() {
 async function analyze() {
   syncSubjectSidebar({ persist: true });
   clearTimeout(state.draftTimer);
+  const merge = prepareCareEntryMerge($("#careText").value || "");
+  const combinedText = careEntriesToText(merge.entries);
+  if (!combinedText.trim()) {
+    toast("请先填写照护记录");
+    return;
+  }
   setProgress(true);
   const wantsVisual = $("#visualToggle").checked;
   const form = new FormData();
   form.append("care_subject", currentSubject());
   form.append("user_id", "demo_user");
-  form.append("text", $("#careText").value || "");
+  form.append("text", combinedText);
   form.append("use_visual", "false");
 
   if (state.audioTranscribing) {
@@ -1086,9 +1273,17 @@ async function analyze() {
     const res = await fetch("/api/analyze", { method: "POST", body: form });
     const data = await res.json();
     renderResult(data.card, data.warnings || []);
+    commitCareEntries(merge.entries);
+    clearComposerInput();
     loadHistory();
     if (wantsVisual) generateVisualAsync(data.card);
-    toast(data.ok ? "交接卡已生成" : "已显示兜底结果");
+    if (merge.duplicates.length) {
+      toast(`交接卡已生成，已合并 ${merge.duplicates.length} 条重复记录`);
+    } else if (merge.pending.length) {
+      toast(`交接卡已生成，新增 ${merge.pending.length} 条记录`);
+    } else {
+      toast(data.ok ? "交接卡已更新" : "已显示兜底结果");
+    }
   } catch (error) {
     setGenerationSource("生成失败", "failed");
     toast(`生成失败：${error.message}`);
@@ -1736,8 +1931,10 @@ function setupEvents() {
   $(".subject-list")?.addEventListener("click", async (event) => {
     const button = event.target?.closest?.(".subject-option");
     if (button) {
+      const sameSubject = currentSubject() === button.dataset.subject && currentScene() === button.dataset.scene;
       $("#subjectInput").value = button.dataset.subject;
       $("#sceneSelect").value = button.dataset.scene;
+      if (!sameSubject) resetCareEntries();
       syncSubjectSidebar({ persist: true });
       updateTopTitle();
       await Promise.all([loadMemories(), loadHistory()]);
@@ -1759,6 +1956,7 @@ function setupEvents() {
   $("#careText").addEventListener("input", scheduleDraftUpdate);
   document.addEventListener("change", handleTaskToggle);
   $("#subjectInput").addEventListener("change", async () => {
+    resetCareEntries();
     syncSubjectSidebar({ persist: true });
     updateTopTitle();
     await Promise.all([loadMemories(), loadHistory()]);
@@ -1868,6 +2066,7 @@ async function init() {
   await setupRecorder();
   await loadSamples();
   updateTopTitle();
+  renderCareEntries();
   await Promise.all([loadMemories(), loadHistory()]);
   renderDraftShell(currentSubject());
 }
