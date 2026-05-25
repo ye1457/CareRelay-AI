@@ -20,6 +20,8 @@ _BOUNDED_PERIOD_RE = re.compile(
     r"(?:未来|接下来|连续)[一二三四五六七八九十]+(?:天|周|月))"
 )
 _ONE_OFF_RE = re.compile(r"(待确认|还没|未确认|确认是否|有没有|发到家人群|转发|今天已|已完成|已做|临时|一次)")
+_META_RE = re.compile(r"(交接模板|固定格式|接龙模板|补原文|原始记录|凭猜测|信息质量|对象\+时间|统一格式)")
+_INCOMPLETE_RE = re.compile(r"(前|后|时|需要|确认|准备|观察|记录)$")
 
 _DURABLE_RE = re.compile(
     r"(每次|每当|每天|每日|每晚|每早|每周|每月|固定|长期|通常|一般|经常|习惯|规律|偏好|"
@@ -62,6 +64,8 @@ def is_short_term_todo_text(text: str) -> bool:
 def is_reusable_memory_text(text: str) -> bool:
     value = normalize_memory_text(text)
     if len(value) < 4:
+        return False
+    if _META_RE.search(value) or _INCOMPLETE_RE.search(value):
         return False
     if is_short_term_todo_text(value):
         return False

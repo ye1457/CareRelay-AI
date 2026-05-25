@@ -57,6 +57,25 @@ def _save_upload(upload: UploadFile | None, prefix: str) -> Path | None:
     return path
 
 
+def _model_dump(item):
+    if hasattr(item, "model_dump"):
+        return item.model_dump()
+    if hasattr(item, "dict"):
+        return item.dict()
+    return item
+
+
+def _trace_dump(trace) -> list[dict]:
+    return [_model_dump(item) for item in trace]
+
+
+def _visual_warning(trace) -> str:
+    detail = (trace[-1].detail if trace else "").strip()
+    if detail:
+        return f"AI 图片未返回，已显示本地备用图。原因：{detail[:160]}"
+    return "AI 图片未返回，已显示本地备用图。"
+
+
 @app.post("/api/analyze", response_model=AnalyzeResult)
 def analyze(
     care_subject: str = Form("爷爷"),
@@ -90,7 +109,7 @@ def transcribe_audio(audio: UploadFile = File(...)) -> dict:
         if audio_path is None:
             raise HTTPException(status_code=400, detail="audio file is empty")
         transcript, trace = pipeline.client.transcribe_audio(audio_path)
-        return {"ok": True, "transcript": transcript.strip(), "trace": [item.model_dump() for item in trace], "warnings": []}
+        return {"ok": True, "transcript": transcript.strip(), "trace": _trace_dump(trace), "warnings": []}
     except Exception as exc:
         return {"ok": False, "transcript": "", "trace": [], "warnings": [f"语音转写失败：{str(exc)[:180]}"]}
 
@@ -102,7 +121,7 @@ def inspect_image(image: UploadFile = File(...)) -> dict:
         if image_path is None:
             raise HTTPException(status_code=400, detail="image file is empty")
         insights, trace = pipeline.client.analyze_image(image_path)
-        return {"ok": True, "insights": insights.strip(), "trace": [item.model_dump() for item in trace], "warnings": []}
+        return {"ok": True, "insights": insights.strip(), "trace": _trace_dump(trace), "warnings": []}
     except Exception as exc:
         return {"ok": False, "insights": "", "trace": [], "warnings": [f"图片解析失败：{str(exc)[:180]}"]}
 
@@ -117,14 +136,14 @@ def generate_visual(card: CareRelayCard) -> dict:
                 "ok": False,
                 "visual_image_b64": "",
                 "visual_fallback_svg": fallback_svg(card),
-                "trace": [item.model_dump() for item in trace],
-                "warnings": ["AI 图片未返回，已显示本地备用图。"],
+                "trace": _trace_dump(trace),
+                "warnings": [_visual_warning(trace)],
             }
         return {
             "ok": True,
             "visual_image_b64": visual_b64,
             "visual_fallback_svg": "",
-            "trace": [item.model_dump() for item in trace],
+            "trace": _trace_dump(trace),
             "warnings": [],
         }
     except Exception as exc:
@@ -150,7 +169,7 @@ def samples() -> dict:
 
 @app.get("/api/offline-card")
 def offline_card(care_subject: str = "爷爷") -> dict:
-    return build_offline_card(care_subject).model_dump()
+    return _model_dump(build_offline_card(care_subject))
 
 
 @app.post("/api/memory", response_model=MemoryListResult)

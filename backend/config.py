@@ -51,11 +51,11 @@ class ModelConfig:
     vision_models: tuple[str, ...] = ("qwen3-vl-32b-instruct", "qwen3-vl-8b-Instruct", "gpt-4o-mini")
     text_fallback_models: tuple[str, ...] = ("gpt-4.1-mini", "gpt-4o-mini")
     asr_model: str = "whisper-1"
-    image_model: str = "gpt-image-2"
+    image_model: str = field(default_factory=lambda: os.environ.get("CARE_RELAY_IMAGE_MODEL", "gpt-image-2"))
     embedding_model: str = "text-embedding-3-large"
     chat_timeout: int = 14
     vision_timeout: int = 45
-    image_timeout: int = 55
+    image_timeout: int = 130
     asr_timeout: int = 24
 
 

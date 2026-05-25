@@ -30,7 +30,14 @@ class APIClient:
 
     @property
     def headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
+
+    @property
+    def auth_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
 
     def _record(self, agent: str, model: str, status: str, start: float, detail: str = "") -> ModelCall:
         return ModelCall(agent=agent, model=model, status=status, latency_ms=int((time.time() - start) * 1000), detail=detail[:240])
@@ -133,7 +140,7 @@ class APIClient:
             with prepared_path.open("rb") as fp:
                 response = self.session.post(
                     f"{self.base_url}/audio/transcriptions",
-                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    headers=self.auth_headers,
                     data={"model": model, "language": "zh", "prompt": "这是一段中文家庭照护交接记录，可能包含服药、复诊、饮食、睡眠、异常情况和待办事项。"},
                     files={"file": (prepared_path.name, fp, "audio/wav" if prepared_path.suffix == ".wav" else "application/octet-stream")},
                     timeout=self.models.asr_timeout,
@@ -144,7 +151,7 @@ class APIClient:
             last_error = response.text[:240]
             time.sleep(0.8 * (attempt + 1))
         trace = [self._record("AudioAgent", model, "failed", start, last_error)]
-        raise CareRelayAPIError(json.dumps([t.model_dump() for t in trace], ensure_ascii=False))
+        raise CareRelayAPIError(json.dumps([t.dict() for t in trace], ensure_ascii=False))
 
     @staticmethod
     def _prepare_audio(audio_path: Path) -> Path:

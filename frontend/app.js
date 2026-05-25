@@ -750,6 +750,8 @@ const shortTermMemoryPattern =
   /(今天|今日|今晚|明天|明早|明晚|后天|本周|这周|这次|本次|刚刚|现在|马上|尽快|稍后|待会儿|待会|下一次|下次|早上|上午|中午|下午|晚上|\d{1,2}\s*(?:点|:|：)\s*\d{0,2}|\d{4}[-/年]\d{1,2}|\d{1,2}[月/]\d{1,2}|周[一二三四五六日天])/;
 const boundedMemoryPattern = /((?:未来|接下来|连续)\s*\d+\s*(?:天|周|月)|(?:未来|接下来|连续)[一二三四五六七八九十]+(?:天|周|月))/;
 const oneOffMemoryPattern = /(待确认|还没|未确认|确认是否|有没有|发到家人群|转发|今天已|已完成|已做|临时|一次)/;
+const metaMemoryPattern = /(交接模板|固定格式|接龙模板|补原文|原始记录|凭猜测|信息质量|对象\+时间|统一格式)/;
+const incompleteMemoryPattern = /(前|后|时|需要|确认|准备|观察|记录)$/;
 const durableMemoryPattern =
   /(每次|每当|每天|每日|每晚|每早|每周|每月|固定|长期|通常|一般|经常|习惯|规律|偏好|喜欢|不喜欢|过敏|忌口|禁忌|避免|不能|不要|少盐|少油|少糖|睡前|饭前|饭后|起床后|复诊前|复查前|复诊后|复查后|外出前|喂药后|洗澡后|入睡前|安抚方式|奶量范围|食物偏好|排泄规律|医保卡|病历本|航空箱|处方单)/;
 const hardRecurringMemoryPattern = /(每次|每当|每天|每日|每晚|每早|每周|每月|固定|长期|通常|一般|经常|习惯|规律|偏好)/;
@@ -776,7 +778,7 @@ function isShortTermMemoryCandidate(text = "") {
 
 function isLongTermMemoryCandidate(text = "") {
   const value = normalizeMemoryCandidate(text);
-  return value.length >= 4 && durableMemoryPattern.test(value) && !isShortTermMemoryCandidate(value);
+  return value.length >= 4 && durableMemoryPattern.test(value) && !metaMemoryPattern.test(value) && !incompleteMemoryPattern.test(value) && !isShortTermMemoryCandidate(value);
 }
 
 function longTermSuggestions(items = []) {
@@ -1176,6 +1178,7 @@ function buildDraftItems() {
 
   sentences.forEach((sentence) => {
     const title = cleanDraftTitle(sentence);
+    if (isLongTermMemoryCandidate(sentence)) return;
     const due = inferDueTime(sentence);
     const isMedicine = medicineWords.test(sentence);
     const isAbnormal = abnormalWords.test(sentence);
@@ -1458,11 +1461,11 @@ async function generateVisualAsync(card) {
     } else if (data.visual_fallback_svg) {
       state.lastCard.visual_fallback_svg = data.visual_fallback_svg;
       renderVisual(state.lastCard);
-      toast("交接卡已生成，AI 图片使用备用图");
+      toast((data.warnings || ["交接卡已生成，AI 图片使用备用图"])[0]);
     } else {
       renderVisual(state.lastCard);
       $("#visualBadge").textContent = imageSrc(state.lastCard) ? "备用图" : "待生成";
-      toast("交接卡已生成，AI 图片使用备用图");
+      toast((data.warnings || ["交接卡已生成，AI 图片使用备用图"])[0]);
     }
   } catch (error) {
     if (state.lastCard === currentCard) {

@@ -12,7 +12,13 @@ from pydantic import ValidationError
 from .api_client import APIClient, CareRelayAPIError
 from .fallback import build_offline_card, fallback_svg
 from .memory import MemoryStore
-from .memory_policy import filter_reusable_memory_suggestions, is_reusable_memory_text, normalize_memory_text
+from .memory_policy import (
+    filter_reusable_memory_suggestions,
+    has_durable_marker,
+    has_short_term_marker,
+    is_reusable_memory_text,
+    normalize_memory_text,
+)
 from .schemas import CareRelayCard, CompletedItem, EmotionAnalysis, ModelCall, TimelineItem, TodoItem
 
 
@@ -400,6 +406,8 @@ visual_prompt,confidence,memory_suggestions。
             title = self._clean_input_title(sentence)
             if len(title) < 2:
                 continue
+            if has_durable_marker(sentence) and not has_short_term_marker(sentence):
+                continue
             due_time = self._infer_due_time(sentence)
             if confirm_re.search(sentence):
                 confirm.append(
@@ -503,7 +511,13 @@ visual_prompt,confidence,memory_suggestions。
 
     def _extract_reusable_memory_candidates(self, text: str) -> list[str]:
         candidates: list[str] = []
-        for sentence in self._split_input_sentences(text):
+        cleaned = re.sub(r"【(?:语音转写|语音识别|图片解析)】", "。", text or "")
+        sentences = [
+            part.strip(" \t\r\n：:，,。")
+            for part in re.split(r"[。；;!?！？\n]+", cleaned)
+            if part.strip(" \t\r\n：:，,。")
+        ][:24]
+        for sentence in sentences:
             value = normalize_memory_text(sentence)
             if is_reusable_memory_text(value):
                 candidates.append(value)
