@@ -1253,11 +1253,42 @@ body[data-scene="pet"] .artifact-panel {
 }
 
 .task-item {
+  position: relative;
   min-height: 72px;
   padding: 11px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-soft);
+  transition:
+    transform 180ms ease,
+    opacity 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.task-item.priority-high {
+  border-color: rgba(185, 77, 66, 0.34);
+  background: linear-gradient(90deg, rgba(253, 232, 229, 0.76), var(--surface-soft) 42%);
+  box-shadow: inset 4px 0 0 var(--red);
+}
+
+.task-item.priority-medium {
+  border-color: rgba(173, 116, 24, 0.32);
+  background: linear-gradient(90deg, rgba(255, 242, 216, 0.78), var(--surface-soft) 42%);
+  box-shadow: inset 4px 0 0 var(--amber);
+}
+
+.task-item.priority-low {
+  border-color: rgba(27, 127, 98, 0.26);
+  background: linear-gradient(90deg, rgba(228, 244, 237, 0.76), var(--surface-soft) 42%);
+  box-shadow: inset 4px 0 0 var(--green);
+}
+
+.task-item.task-empty {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  box-shadow: none;
 }
 
 .task-title {
@@ -1273,6 +1304,7 @@ body[data-scene="pet"] .artifact-panel {
   width: 16px;
   height: 16px;
   margin-top: 3px;
+  accent-color: var(--green);
 }
 
 .task-meta {
@@ -1295,11 +1327,79 @@ body[data-scene="pet"] .artifact-panel {
   font-weight: 760;
 }
 
+.task-item.priority-high .priority-pill {
+  color: #8d352e;
+  background: var(--red-soft);
+}
+
+.task-item.priority-medium .priority-pill {
+  color: #70470c;
+  background: var(--amber-soft);
+}
+
+.task-item.priority-low .priority-pill {
+  color: #155840;
+  background: var(--green-soft);
+}
+
 .task-note {
   margin: 8px 0 0;
   color: #75473f;
   line-height: 1.5;
   font-size: 12px;
+}
+
+.task-completed {
+  opacity: 0.72;
+  border-color: rgba(27, 127, 98, 0.28) !important;
+  background: #f2f7f4 !important;
+  box-shadow: inset 4px 0 0 var(--green) !important;
+}
+
+.task-completed::after {
+  content: "已完成";
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  padding: 3px 7px;
+  border-radius: 99px;
+  color: #155840;
+  background: var(--green-soft);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.task-completed .task-title span:last-child {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.task-completed .task-title {
+  padding-right: 72px;
+}
+
+.task-completed .task-note {
+  color: var(--muted);
+}
+
+.task-just-completed {
+  animation: taskCompletePop 720ms ease;
+}
+
+@keyframes taskCompletePop {
+  0% {
+    transform: scale(1);
+    box-shadow: inset 4px 0 0 var(--green), 0 0 0 0 rgba(27, 127, 98, 0.28);
+  }
+  38% {
+    transform: scale(1.018);
+    box-shadow: inset 4px 0 0 var(--green), 0 0 0 7px rgba(27, 127, 98, 0.13);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: inset 4px 0 0 var(--green), 0 0 0 0 rgba(27, 127, 98, 0);
+  }
 }
 
 .timeline-section {
@@ -1355,6 +1455,11 @@ body[data-scene="pet"] .artifact-panel {
 .timeline-item.confirm .time-chip {
   color: var(--amber);
   background: var(--amber-soft);
+}
+
+.timeline-item.todo .time-chip {
+  color: var(--blue);
+  background: var(--blue-soft);
 }
 
 .timeline-item.risk .time-chip {

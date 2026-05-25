@@ -359,8 +359,19 @@ function toast(message) {
   setTimeout(() => node.classList.add("hidden"), 2200);
 }
 
+function priorityInfo(priority) {
+  const value = String(priority || "").trim().toLowerCase();
+  if (["high", "高", "高优先级", "urgent", "critical"].includes(value)) {
+    return { key: "high", label: "高优先级", rank: 0 };
+  }
+  if (["low", "低", "低优先级"].includes(value)) {
+    return { key: "low", label: "低优先级", rank: 2 };
+  }
+  return { key: "medium", label: "中优先级", rank: 1 };
+}
+
 function priorityText(priority) {
-  return { high: "高优先级", medium: "中优先级", low: "低优先级" }[priority] || priority || "中优先级";
+  return priorityInfo(priority).label;
 }
 
 function modeFor(scene = currentScene()) {
@@ -1344,27 +1355,76 @@ function healthIndex(card) {
 function renderTaskList(items, targetId) {
   const node = $(`#${targetId}`);
   if (!items.length) {
-    node.innerHTML = `<div class="task-item"><div class="task-title"><span></span><span>暂无事项</span></div></div>`;
+    node.innerHTML = `<div class="task-item task-empty"><div class="task-title"><span></span><span>暂无事项</span></div></div>`;
     return;
   }
-  node.innerHTML = items
-    .map(
-      (item) => `
-        <div class="task-item">
+  const sortedItems = items
+    .map((item, index) => ({
+      item,
+      index,
+      priority: priorityInfo(item.priority),
+      due: parseTimelineTime({ time: item.due_time, label: item.title, detail: item.safety_note }),
+    }))
+    .sort((a, b) => {
+      if (a.priority.rank !== b.priority.rank) return a.priority.rank - b.priority.rank;
+      if (a.due.sort !== b.due.sort) return a.due.sort - b.due.sort;
+      return a.index - b.index;
+    });
+  node.innerHTML = sortedItems
+    .map(({ item, priority, due }, renderIndex) => {
+      return `
+        <div class="task-item priority-${priority.key}" data-priority-rank="${priority.rank}" data-sort-index="${renderIndex}">
           <label class="task-title">
             <input type="checkbox" />
             <span>${escapeHtml(item.title)}</span>
           </label>
           <div class="task-meta">
-            <span>${escapeHtml(item.due_time || "时间待定")}</span>
+            <span>${escapeHtml(due.display || "时间待定")}</span>
             <span>${escapeHtml(item.owner || "家人")}</span>
-            <span>${priorityText(item.priority)}</span>
+            <span class="priority-pill">${priority.label}</span>
           </div>
           ${item.safety_note ? `<p class="task-note">${escapeHtml(item.safety_note)}</p>` : ""}
         </div>
-      `,
-    )
+      `;
+    })
     .join("");
+}
+
+function reorderTaskList(node) {
+  const items = Array.from(node.querySelectorAll(".task-item:not(.task-empty)"));
+  items
+    .sort((a, b) => {
+      const aDone = a.classList.contains("task-completed") ? 1 : 0;
+      const bDone = b.classList.contains("task-completed") ? 1 : 0;
+      if (aDone !== bDone) return aDone - bDone;
+      const aRank = Number(a.dataset.priorityRank || 1);
+      const bRank = Number(b.dataset.priorityRank || 1);
+      if (!aDone && aRank !== bRank) return aRank - bRank;
+      const aDoneAt = Number(a.dataset.completedAt || 0);
+      const bDoneAt = Number(b.dataset.completedAt || 0);
+      if (aDone && aDoneAt !== bDoneAt) return aDoneAt - bDoneAt;
+      return Number(a.dataset.sortIndex || 0) - Number(b.dataset.sortIndex || 0);
+    })
+    .forEach((item) => node.appendChild(item));
+}
+
+function handleTaskToggle(event) {
+  const checkbox = event.target?.closest?.(".task-title input[type='checkbox']");
+  if (!checkbox) return;
+  const item = checkbox.closest(".task-item");
+  const list = checkbox.closest(".task-list");
+  if (!item || !list) return;
+  item.classList.toggle("task-completed", checkbox.checked);
+  if (checkbox.checked) {
+    item.dataset.completedAt = String(Date.now());
+    item.classList.remove("task-just-completed");
+    void item.offsetWidth;
+    item.classList.add("task-just-completed");
+  } else {
+    delete item.dataset.completedAt;
+    item.classList.remove("task-just-completed");
+  }
+  reorderTaskList(list);
 }
 
 function renderCompleted(items) {
@@ -1378,17 +1438,128 @@ function renderCompleted(items) {
     .join("");
 }
 
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function dayLabel(offset, absoluteLabel = "") {
+  if (offset === -1) return "昨日";
+  if (offset === 0) return "今日";
+  if (offset === 1) return "明日";
+  if (offset === 2) return "后日";
+  return absoluteLabel || "日期待定";
+}
+
+function parseTimelineTime(item = {}) {
+  const rawTime = String(item.time || "").trim();
+  const joined = `${rawTime} ${item.label || ""} ${item.detail || ""}`;
+  let dayOffset = /后天|后日/.test(joined) ? 2 : /明天|明日|明早|明晚/.test(joined) ? 1 : 0;
+  let absoluteLabel = "";
+  let hasDate = /今天|今日|明天|明日|后天|后日|明早|明晚/.test(joined);
+
+  const isoMatch = joined.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[T\s]+(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch.map((value) => value || "");
+    const today = new Date();
+    const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const target = new Date(Number(year), Number(month) - 1, Number(day));
+    dayOffset = Math.round((target - base) / 86400000);
+    absoluteLabel = `${pad2(month)}-${pad2(day)}`;
+    hasDate = true;
+  }
+
+  const timeMatch = joined.match(/(?:^|[^\d])([01]?\d|2[0-3])\s*(?:点|:|：)\s*([0-5]?\d)?/);
+  if (timeMatch) {
+    const hour = Number(timeMatch[1]);
+    const minute = Number(timeMatch[2] || 0);
+    return {
+      sort: dayOffset * 1440 + hour * 60 + minute,
+      display: `${dayLabel(dayOffset, absoluteLabel)} ${pad2(hour)}:${pad2(minute)}`,
+      exact: true,
+    };
+  }
+
+  const periodRules = [
+    ["凌晨", 360, "凌晨"],
+    ["明早", 540, "上午"],
+    ["早上", 480, "早上"],
+    ["上午", 540, "上午"],
+    ["中午", 720, "中午"],
+    ["下午", 900, "下午"],
+    ["明晚", 1200, "晚上"],
+    ["今晚", 1200, "晚上"],
+    ["晚上", 1200, "晚上"],
+    ["晚间", 1200, "晚上"],
+  ];
+  const period = periodRules.find(([word]) => joined.includes(word));
+  if (period) {
+    return {
+      sort: dayOffset * 1440 + period[1],
+      display: `${dayLabel(dayOffset, absoluteLabel)} ${period[2]}`,
+      exact: false,
+    };
+  }
+
+  if (hasDate) {
+    return {
+      sort: dayOffset * 1440 + 1439,
+      display: dayLabel(dayOffset, absoluteLabel),
+      exact: false,
+    };
+  }
+
+  return { sort: Number.POSITIVE_INFINITY, display: rawTime || "待定", exact: false };
+}
+
+function timelineEventKind(item = {}) {
+  const text = `${item.type || ""} ${item.label || ""} ${item.detail || ""}`;
+  if (/药|服用|剂量|喂药/.test(text)) return "medicine";
+  if (/血压|血糖|体温|异常|不适|吐|痛|哭闹/.test(text)) return "risk";
+  if (/复诊|复查|医院|医生|医保|病历/.test(text)) return "appointment";
+  if (/吃|喝|粥|进食|喂奶|喂食|饮水/.test(text)) return "meal";
+  if (/准备|放入|带|材料|航空箱/.test(text)) return "prepare";
+  if (/睡|午休|入睡/.test(text)) return "sleep";
+  if (/确认|待确认|有没有|是否/.test(text)) return "confirm";
+  return String(item.type || "care");
+}
+
+function timelineItemScore(item = {}) {
+  return String(item.label || "").length * 2 + String(item.detail || "").length + (item.type === "done" ? 4 : 0);
+}
+
+function normalizeTimelineItems(items = []) {
+  const map = new Map();
+  items.forEach((item, index) => {
+    const parsed = parseTimelineTime(item);
+    const kind = timelineEventKind(item);
+    const key = `${Number.isFinite(parsed.sort) ? parsed.sort : "unknown"}-${kind}`;
+    const normalized = { ...item, _time: parsed, _kind: kind, _index: index };
+    const existing = map.get(key);
+    if (!existing || timelineItemScore(normalized) > timelineItemScore(existing)) {
+      map.set(key, normalized);
+    }
+  });
+  return Array.from(map.values()).sort((a, b) => {
+    if (a._time.sort !== b._time.sort) return a._time.sort - b._time.sort;
+    const typeOrder = { done: 0, care: 1, confirm: 2, todo: 3, risk: 4 };
+    const aType = typeOrder[a.type] ?? 5;
+    const bType = typeOrder[b.type] ?? 5;
+    if (aType !== bType) return aType - bType;
+    return a._index - b._index;
+  });
+}
+
 function renderTimeline(items) {
   const node = $("#timeline");
   if (!items.length) {
     node.innerHTML = `<div class="timeline-item"><div class="time-chip">待定</div><div><h4>暂无时间线</h4><p>生成后显示照护事件。</p></div></div>`;
     return;
   }
-  node.innerHTML = items
+  node.innerHTML = normalizeTimelineItems(items)
     .map(
       (item) => `
         <div class="timeline-item ${escapeHtml(item.type || "care")}">
-          <div class="time-chip">${escapeHtml(item.time || "待定")}</div>
+          <div class="time-chip">${escapeHtml(item._time.display || "待定")}</div>
           <div>
             <h4>${escapeHtml(item.label || "")}</h4>
             <p>${escapeHtml(item.detail || "")}</p>
@@ -1586,6 +1757,7 @@ function setupEvents() {
   $("#refreshHistoryBtn").addEventListener("click", loadHistory);
   $("#saveManualMemoryBtn").addEventListener("click", saveManualMemory);
   $("#careText").addEventListener("input", scheduleDraftUpdate);
+  document.addEventListener("change", handleTaskToggle);
   $("#subjectInput").addEventListener("change", async () => {
     syncSubjectSidebar({ persist: true });
     updateTopTitle();
