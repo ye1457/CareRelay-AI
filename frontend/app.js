@@ -16,6 +16,304 @@ const localSamples = {
   },
 };
 
+const careModes = {
+  elder: {
+    label: "老人照护",
+    sidebarLabel: "老人照护",
+    eyebrow: "今天 · AI 交接",
+    topTitle: (subject) => `${subject}的今日照护`,
+    artifactTitle: "今日交接卡",
+    composerTitle: "今日记录",
+    textLabel: "照护记录",
+    scoreLabel: "今日指数",
+    summaryTitle: (subject) => `${subject}今日交接`,
+    emptySummary: "写下今日记录后，会在这里预览交接重点。",
+    familyMessage: "生成后可直接转发到家人群。",
+    visualEmptyTitle: "CareRelay",
+    visualEmptySubtitle: "今日交接",
+    metrics: {
+      completed: "已完成",
+      confirm: "待确认",
+      todo: "下一步",
+      risk: "风险提示",
+    },
+    blocks: {
+      family: "家属消息",
+      confirm: "必须确认",
+      todo: "下一步",
+      timeline: "时间线",
+      visual: "信息图",
+      risk: "风险",
+      completed: "已完成",
+      questions: "追问",
+    },
+    risks: {
+      medication: "药物",
+      appointment: "复诊",
+      symptom: "异常",
+      communication: "沟通",
+    },
+    riskKeys: ["medication", "appointment", "symptom", "communication"],
+    riskDefaults: {
+      medication: 20,
+      appointment: 20,
+      symptom: 20,
+      communication: 20,
+    },
+    riskRules: [
+      ["medication", /药|服用|剂量|处方/],
+      ["appointment", /复诊|复查|医院|医生/],
+      ["symptom", /血压|发热|发烧|吐|痛|哭闹|不适|异常/],
+    ],
+    quickTitle: "老人快速记录",
+    quickHint: "把用药、生命体征、进食和复诊补成可交接记录。",
+    quickInputs: [
+      { label: "用药", text: "用药：时间 ，药名/剂量 ，是否已按医嘱服用：" },
+      { label: "血压", text: "血压：时间 ，数值 ，是否需要继续观察：" },
+      { label: "进食", text: "进食：时间 ，吃了 ，饮水情况：" },
+      { label: "睡眠", text: "睡眠：昨晚/午休 ，醒后精神状态：" },
+      { label: "复诊", text: "复诊：时间 ，地点/科室 ，需要准备：" },
+      { label: "异常", text: "异常观察：时间 ，表现 ，是否已联系家人/医生：" },
+    ],
+    focusTitle: "今日照护重点",
+    focusHint: "老人页面优先把用药、复诊和异常交接清楚。",
+    focusCards: [
+      { icon: "药", title: "用药确认", text: "药名、剂量、时间和是否已服用要单独交接，避免漏服或重复。" },
+      { icon: "诊", title: "复诊准备", text: "医保卡、病历、检查单和出发时间放在下一步里，接手人能直接执行。" },
+      { icon: "异", title: "异常观察", text: "血压、血糖、疼痛、发热或精神变化会被放到风险与追问区域。" },
+    ],
+    memory: {
+      title: "个性化知识库",
+      desc: "适合保存复诊准备、用药边界、生活习惯、照护偏好。",
+      placeholder: "例如：爷爷复诊前一天要准备医保卡和病历本。",
+      empty: "把复诊准备、用药提醒、生活习惯或照护偏好保存下来，之后生成交接卡时会自动参考。",
+      suggestionEmpty: "生成交接卡后，CareRelay 会把适合长期保存的内容推荐到这里。",
+      labels: { care: "照护", medical: "医疗", preference: "偏好" },
+      meta: {
+        medical: {
+          icon: "医",
+          title: "医疗与复诊",
+          hint: "生成交接卡时优先用于安全提醒",
+          pattern: /复诊|复查|医院|医生|医保|病历|处方|药|服用|剂量|血压|血糖|症状|不适/,
+        },
+        preference: {
+          icon: "好",
+          title: "偏好与习惯",
+          hint: "用于个性化照护建议",
+          pattern: /喜欢|不喜欢|习惯|偏好|睡前|饮食|口味|安抚|拍嗝|猫砂|玩具/,
+        },
+        care: {
+          icon: "护",
+          title: "日常照护",
+          hint: "用于补全交接上下文",
+        },
+      },
+      suggestionTitles: {
+        medical: "建议保存为医疗记忆",
+        preference: "建议保存为偏好记忆",
+        care: "建议保存为照护记忆",
+      },
+    },
+  },
+  baby: {
+    label: "宝宝照护",
+    sidebarLabel: "喂养睡眠",
+    eyebrow: "今天 · 宝宝节律",
+    topTitle: (subject) => `${subject}的今日节律`,
+    artifactTitle: "宝宝节律卡",
+    composerTitle: "喂养与作息记录",
+    textLabel: "宝宝记录",
+    scoreLabel: "节律指数",
+    summaryTitle: (subject) => `${subject}今日节律`,
+    emptySummary: "记录喂奶、睡眠、尿布、体温和哭闹情况后，会在这里预览下一次照护节奏。",
+    familyMessage: "生成后可直接发给家人，统一下一次喂养、哄睡和观察安排。",
+    visualEmptyTitle: "Baby Rhythm",
+    visualEmptySubtitle: "喂养 · 睡眠 · 尿布",
+    metrics: {
+      completed: "已记录",
+      confirm: "需关注",
+      todo: "下一次",
+      risk: "异常信号",
+    },
+    blocks: {
+      family: "家人同步",
+      confirm: "需要关注",
+      todo: "下一次照护",
+      timeline: "宝宝节律",
+      visual: "节律图",
+      risk: "观察重点",
+      completed: "已记录",
+      questions: "继续追问",
+    },
+    risks: {
+      medication: "喂养",
+      appointment: "睡眠",
+      symptom: "体温/不适",
+      communication: "安抚沟通",
+    },
+    riskKeys: ["medication", "appointment", "symptom", "communication"],
+    riskDefaults: {
+      medication: 22,
+      appointment: 24,
+      symptom: 20,
+      communication: 24,
+    },
+    riskRules: [
+      ["medication", /奶|母乳|配方|辅食|ml|毫升|拍嗝|吐奶|胀气/],
+      ["appointment", /睡|醒|午觉|夜醒|入睡|哄睡/],
+      ["symptom", /体温|发烧|发热|咳|哭闹|胀气|疹|拉肚子|便便|不适/],
+    ],
+    quickTitle: "宝宝快速记录",
+    quickHint: "把高频照护项补成一句可交接的记录。",
+    quickInputs: [
+      { label: "喂奶", text: "刚刚喝奶 ml，拍嗝情况：，下一次预计：" },
+      { label: "睡眠", text: "这次睡眠从 到 ，醒来状态：" },
+      { label: "尿布", text: "尿布情况：尿量 ，便便 ，皮肤状态：" },
+      { label: "体温", text: "体温 ℃，精神状态：，是否继续观察：" },
+      { label: "哭闹", text: "哭闹持续 分钟，可能原因：，安抚方式：" },
+      { label: "洗澡", text: "洗澡/清洁状态：，护肤或红屁屁情况：" },
+    ],
+    focusTitle: "今日照护节奏",
+    focusHint: "宝宝页面优先让家人知道下一次要做什么。",
+    focusCards: [
+      { icon: "奶", title: "下一次喂养", text: "记录奶量、拍嗝、吐奶或胀气，避免重复喂或漏喂。" },
+      { icon: "睡", title: "睡眠窗口", text: "把入睡、醒来和夜醒放到同一条节律里，便于接手哄睡。" },
+      { icon: "温", title: "异常观察", text: "体温、持续哭闹、皮疹、便便异常会被放到更醒目的位置。" },
+    ],
+    memory: {
+      title: "宝宝习惯库",
+      desc: "适合保存奶量范围、睡眠节律、安抚方式、过敏或儿保准备。",
+      placeholder: "例如：宝宝睡前需要先拍嗝，再抱走动 5 分钟比较容易入睡。",
+      empty: "把奶量范围、入睡习惯、安抚方式或过敏不适保存下来，之后会自动用于宝宝交接。",
+      suggestionEmpty: "生成宝宝节律卡后，CareRelay 会把稳定习惯和异常观察建议保存到这里。",
+      labels: { care: "节律", medical: "不适", preference: "安抚" },
+      meta: {
+        medical: {
+          icon: "温",
+          title: "过敏与不适",
+          hint: "用于提醒体温、过敏、胀气或儿保事项",
+          pattern: /体温|发烧|发热|过敏|疹|咳|胀气|吐奶|拉肚子|医院|医生|儿保|疫苗|药/,
+        },
+        preference: {
+          icon: "哄",
+          title: "安抚与偏好",
+          hint: "用于生成更贴近宝宝习惯的照护安排",
+          pattern: /安抚|喜欢|不喜欢|习惯|睡前|抱|摇|白噪音|奶嘴|玩具|拍嗝/,
+        },
+        care: {
+          icon: "节",
+          title: "喂养睡眠节律",
+          hint: "用于补全下一次喂养、睡眠和尿布安排",
+        },
+      },
+      suggestionTitles: {
+        medical: "建议保存为不适观察",
+        preference: "建议保存为安抚偏好",
+        care: "建议保存为节律记忆",
+      },
+    },
+  },
+  pet: {
+    label: "宠物照护",
+    sidebarLabel: "宠物照护",
+    eyebrow: "今天 · 宠物状态",
+    topTitle: (subject) => `${subject}的今日状态`,
+    artifactTitle: "宠物状态卡",
+    composerTitle: "饮食与状态记录",
+    textLabel: "宠物记录",
+    scoreLabel: "状态指数",
+    summaryTitle: (subject) => `${subject}今日状态`,
+    emptySummary: "记录喂食、饮水、排泄、精神状态和异常后，会在这里预览照护重点。",
+    familyMessage: "生成后可直接发给家人，统一喂食、用药、清理和复查准备。",
+    visualEmptyTitle: "Pet Status",
+    visualEmptySubtitle: "饮食 · 排泄 · 精神",
+    metrics: {
+      completed: "已记录",
+      confirm: "需确认",
+      todo: "待处理",
+      risk: "异常信号",
+    },
+    blocks: {
+      family: "家人同步",
+      confirm: "必须确认",
+      todo: "待处理",
+      timeline: "状态时间线",
+      visual: "状态图",
+      risk: "观察重点",
+      completed: "已记录",
+      questions: "继续追问",
+    },
+    risks: {
+      medication: "饮食饮水",
+      appointment: "排泄",
+      symptom: "异常症状",
+      communication: "用药复查",
+    },
+    riskKeys: ["medication", "appointment", "symptom", "communication"],
+    riskDefaults: {
+      medication: 20,
+      appointment: 20,
+      symptom: 20,
+      communication: 22,
+    },
+    riskRules: [
+      ["medication", /猫粮|狗粮|罐头|喂|吃|饮水|喝水|食欲|没吃/],
+      ["appointment", /排便|便便|软便|拉稀|尿|猫砂|遛|外出/],
+      ["symptom", /吐|呕吐|咳|打喷嚏|精神|没精神|跛|疼|异常|不适/],
+      ["communication", /药|喂药|复查|宠物医院|医生|疫苗|驱虫/],
+    ],
+    quickTitle: "宠物快速记录",
+    quickHint: "把日常观察补成接手人能执行的记录。",
+    quickInputs: [
+      { label: "喂食", text: "喂食：，食欲：，下一次喂食：" },
+      { label: "饮水", text: "饮水情况：，是否明显变多/变少：" },
+      { label: "排泄", text: "排泄情况：尿 ，便便 ，猫砂/外出清理：" },
+      { label: "精神", text: "精神状态：，活动量：，是否愿意互动：" },
+      { label: "呕吐", text: "呕吐/软便情况：次数 ，颜色/状态：，是否继续观察：" },
+      { label: "用药复查", text: "用药/复查：，下一次时间：，需要准备：" },
+    ],
+    focusTitle: "今日观察重点",
+    focusHint: "宠物页面优先把异常信号和可执行事项拆清楚。",
+    focusCards: [
+      { icon: "食", title: "饮食饮水", text: "记录食欲、饮水变化和喂食时间，方便判断状态是否偏离平时。" },
+      { icon: "便", title: "排泄清理", text: "尿量、软便、猫砂盆或外出情况会被放进交接主线。" },
+      { icon: "医", title: "异常与复查", text: "呕吐、精神差、用药和宠物医院复查会单独提醒接手人。" },
+    ],
+    memory: {
+      title: "宠物习惯库",
+      desc: "适合保存饮食偏好、排泄规律、兽医用药、外出和清理习惯。",
+      placeholder: "例如：小猫不喜欢鱼味罐头，喂药后要给一点冻干奖励。",
+      empty: "把食物偏好、排泄规律、用药复查或外出习惯保存下来，之后会自动用于宠物交接。",
+      suggestionEmpty: "生成宠物状态卡后，CareRelay 会把稳定习惯和异常观察建议保存到这里。",
+      labels: { care: "生活", medical: "兽医", preference: "偏好" },
+      meta: {
+        medical: {
+          icon: "医",
+          title: "兽医与用药",
+          hint: "用于提醒用药、复查、疫苗或驱虫",
+          pattern: /宠物医院|兽医|医生|复查|药|喂药|疫苗|驱虫|处方|呕吐|吐|软便|拉稀|不适/,
+        },
+        preference: {
+          icon: "好",
+          title: "饮食与偏好",
+          hint: "用于生成更贴近平时习惯的照护建议",
+          pattern: /喜欢|不喜欢|偏好|习惯|猫粮|狗粮|罐头|冻干|零食|玩具|猫砂|牵引/,
+        },
+        care: {
+          icon: "护",
+          title: "生活与排泄",
+          hint: "用于补全喂食、饮水、排泄和清理安排",
+        },
+      },
+      suggestionTitles: {
+        medical: "建议保存为兽医记忆",
+        preference: "建议保存为偏好记忆",
+        care: "建议保存为生活习惯",
+      },
+    },
+  },
+};
+
 const state = {
   samples: localSamples,
   audioBlob: null,
@@ -65,13 +363,17 @@ function priorityText(priority) {
   return { high: "高优先级", medium: "中优先级", low: "低优先级" }[priority] || priority || "中优先级";
 }
 
+function modeFor(scene = currentScene()) {
+  return careModes[scene] || careModes.elder;
+}
+
+function setText(selector, value) {
+  const node = $(selector);
+  if (node) node.textContent = value;
+}
+
 function riskName(key) {
-  return {
-    medication: "药物",
-    appointment: "复诊",
-    symptom: "异常",
-    communication: "沟通",
-  }[key] || key;
+  return modeFor().risks[key] || careModes.elder.risks[key] || key;
 }
 
 function currentSubject() {
@@ -83,7 +385,7 @@ function currentScene() {
 }
 
 function sceneLabel(scene) {
-  return { elder: "老人照护", baby: "喂养睡眠", pet: "宠物照护" }[scene] || "家庭照护";
+  return modeFor(scene).sidebarLabel || modeFor(scene).label || "家庭照护";
 }
 
 function sceneAvatar(scene, subject) {
@@ -95,16 +397,103 @@ function sceneAvatar(scene, subject) {
 function updateTopTitle() {
   const subject = currentSubject();
   const scene = currentScene();
-  $("#topTitle").textContent = `${subject}的今日照护`;
-  $("#cardSubject").textContent = `${subject}今日交接`;
+  const mode = modeFor(scene);
+  document.body.dataset.scene = scene;
+  setText("#workspaceEyebrow", mode.eyebrow);
+  setText("#topTitle", mode.topTitle(subject));
+  setText("#artifactTitle", mode.artifactTitle);
+  setText("#composerTitle", mode.composerTitle);
+  setText("#careTextLabel", mode.textLabel);
+  setText("#scoreLabel", mode.scoreLabel);
+  setText("#cardSubject", mode.summaryTitle(subject));
+  setText("#completedMetricLabel", mode.metrics.completed);
+  setText("#confirmMetricLabel", mode.metrics.confirm);
+  setText("#todoMetricLabel", mode.metrics.todo);
+  setText("#riskMetricLabel", mode.metrics.risk);
+  setText("#familyBlockTitle", mode.blocks.family);
+  setText("#confirmBlockTitle", mode.blocks.confirm);
+  setText("#todoBlockTitle", mode.blocks.todo);
+  setText("#timelineBlockTitle", mode.blocks.timeline);
+  setText("#visualBlockTitle", mode.blocks.visual);
+  setText("#riskBlockTitle", mode.blocks.risk);
+  setText("#completedBlockTitle", mode.blocks.completed);
+  setText("#questionBlockTitle", mode.blocks.questions);
+  setText("#visualEmpty strong", mode.visualEmptyTitle);
+  setText("#visualEmpty span", mode.visualEmptySubtitle);
   $("#profileName").textContent = subject;
   $("#profileMeta").textContent = `${sceneLabel(scene)} · 家庭交接`;
   $("#profileAvatar").textContent = sceneAvatar(scene, subject);
   $("#profileAvatar").className = `avatar ${scene === "baby" ? "baby" : scene === "pet" ? "pet" : "elder"}`;
   $$(".subject-option").forEach((button) => {
-    button.classList.toggle("active", button.dataset.subject === subject || button.dataset.scene === scene);
+    button.classList.toggle("active", button.dataset.scene === scene);
   });
+  renderQuickInputs();
+  renderModeFocus();
+  updateMemorySceneCopy();
   updateSubjectHints();
+}
+
+function renderQuickInputs() {
+  const mode = modeFor();
+  const panel = $("#quickInputPanel");
+  const row = $("#quickInputRow");
+  if (!panel || !row) return;
+  const inputs = mode.quickInputs || [];
+  panel.classList.toggle("hidden", !inputs.length);
+  setText("#quickInputTitle", mode.quickTitle || "快速补充");
+  setText("#quickInputHint", mode.quickHint || "选择一个重点，自动补到记录里。");
+  row.innerHTML = inputs
+    .map((item) => `<button class="quick-input-chip" type="button" data-quick-input="${escapeHtml(item.text)}">${escapeHtml(item.label)}</button>`)
+    .join("");
+}
+
+function appendQuickInput(text) {
+  const textarea = $("#careText");
+  const value = (text || "").trim();
+  if (!textarea || !value) return;
+  const prefix = textarea.value.trim() ? "\n" : "";
+  textarea.value = `${textarea.value.trim()}${prefix}${value}`;
+  textarea.dispatchEvent(new Event("input"));
+  textarea.focus();
+}
+
+function renderModeFocus() {
+  const mode = modeFor();
+  const panel = $("#modeFocusPanel");
+  const node = $("#modeFocusCards");
+  if (!panel || !node) return;
+  const cards = mode.focusCards || [];
+  panel.classList.toggle("hidden", !cards.length);
+  setText("#modeFocusTitle", mode.focusTitle || "场景重点");
+  setText("#modeFocusHint", mode.focusHint || "");
+  node.innerHTML = cards
+    .map(
+      (item) => `
+        <article class="mode-focus-card">
+          <span>${escapeHtml(item.icon)}</span>
+          <div>
+            <strong>${escapeHtml(item.title)}</strong>
+            <p>${escapeHtml(item.text)}</p>
+          </div>
+        </article>
+      `,
+    )
+    .join("");
+}
+
+function updateMemorySceneCopy() {
+  const mode = modeFor();
+  const memory = mode.memory;
+  if (!memory) return;
+  setText("#memoryTitle", memory.title);
+  setText("#memoryComposeTitle", "新增一条长期记忆");
+  setText("#memoryComposeDesc", memory.desc);
+  setText("#memoryComposeHint", "会自动归入当前照护对象");
+  setText("#memoryCareLabel", memory.labels.care);
+  setText("#memoryMedicalLabel", memory.labels.medical);
+  setText("#memoryPreferenceLabel", memory.labels.preference);
+  const manual = $("#manualMemoryText");
+  if (manual) manual.placeholder = memory.placeholder;
 }
 
 function setProgress(active) {
@@ -198,13 +587,14 @@ function renderMemoryHits(memories, targetId = "memoryHits") {
   const node = $(`#${targetId}`);
   if (!node) return;
   updateMemoryStats(memories);
+  const mode = modeFor();
   if (!memories.length) {
     node.innerHTML = `
       <div class="memory-empty-card">
         <span class="memory-card-icon care">记</span>
         <div>
           <strong>还没有保存的长期记忆</strong>
-          <p>把复诊准备、用药提醒、生活习惯或照护偏好保存下来，之后生成交接卡时会自动参考。</p>
+          <p>${escapeHtml(mode.memory.empty)}</p>
         </div>
       </div>
     `;
@@ -239,6 +629,7 @@ function renderMemoryHits(memories, targetId = "memoryHits") {
 function updateMemoryStats(memories) {
   const countNode = $("#memoryCount");
   if (!countNode) return;
+  updateMemorySceneCopy();
   const stats = memories.reduce(
     (acc, item) => {
       const type = memoryMeta(item.text, item.label).type;
@@ -257,42 +648,25 @@ function updateMemoryStats(memories) {
 }
 
 function memoryMeta(text = "", label = "") {
+  const meta = modeFor().memory.meta;
   const value = `${text} ${label}`;
-  if (/复诊|复查|医院|医生|医保|病历|处方|药|服用|剂量|血压|血糖|症状|不适/.test(value)) {
-    return {
-      type: "medical",
-      icon: "医",
-      title: "医疗与复诊",
-      hint: "生成交接卡时优先用于安全提醒",
-    };
-  }
-  if (/喜欢|不喜欢|习惯|偏好|睡前|饮食|口味|安抚|拍嗝|猫砂|玩具/.test(value)) {
-    return {
-      type: "preference",
-      icon: "好",
-      title: "偏好与习惯",
-      hint: "用于个性化照护建议",
-    };
-  }
-  return {
-    type: "care",
-    icon: "护",
-    title: "日常照护",
-    hint: "用于补全交接上下文",
-  };
+  if (meta.medical.pattern.test(value)) return { type: "medical", ...meta.medical };
+  if (meta.preference.pattern.test(value)) return { type: "preference", ...meta.preference };
+  return { type: "care", ...meta.care };
 }
 
 function suggestionMeta(text = "") {
   const meta = memoryMeta(text, "suggestion");
+  const titles = modeFor().memory.suggestionTitles;
   return {
     ...meta,
-    title: meta.type === "medical" ? "建议保存为医疗记忆" : meta.type === "preference" ? "建议保存为偏好记忆" : "建议保存为照护记忆",
+    title: titles[meta.type],
   };
 }
 
 function updateSubjectHints() {
   const hint = $("#memorySubjectHint");
-  if (hint) hint.textContent = `当前对象：${currentSubject()}。`;
+  if (hint) hint.textContent = `当前对象：${currentSubject()} · ${modeFor().label}。`;
 }
 
 async function saveMemory(text) {
@@ -564,12 +938,13 @@ function imageSrc(card) {
 }
 
 function renderResult(card, warnings = []) {
+  const mode = modeFor();
   state.lastCard = card;
   $("#copyMessageBtn").disabled = false;
   $("#speakBtn").disabled = false;
   $("#careStatus").textContent = card.care_status || "需确认";
   $("#cardDate").textContent = card.date || "今日";
-  $("#cardSubject").textContent = `${card.care_subject || currentSubject()}今日交接`;
+  $("#cardSubject").textContent = mode.summaryTitle(card.care_subject || currentSubject());
   $("#summaryText").textContent = card.summary || "";
   const score = healthIndex(card);
   $("#statusScore").textContent = score;
@@ -628,12 +1003,18 @@ function inferDueTime(sentence) {
 
 function buildDraftItems() {
   const text = $("#careText").value || "";
+  const scene = currentScene();
   const sentences = splitCareSentences(text);
   const confirmWords = /(不确定|没确认|未确认|是否|还没|待确认|确认一下|需要确认|还要确认|有没有)/;
-  const todoWords = /(下一步|待做|待办|还要|需要|要去|要带|记得|提醒|明天|加一个|新增|添加|加上|加入|准备|观察|复查|复诊|喂药|洗澡|测|安排)/;
+  const todoWords = /(下一步|下一次|预计|待做|待办|还要|需要|要去|要带|记得|提醒|明天|加一个|新增|添加|加上|加入|准备|观察|复查|复诊|喂药|洗澡|测|安排|喂奶|喂食|饮水|排泄|猫砂|遛|拍嗝|哄睡)/;
   const doneWords = /(已完成|已经|已|吃了|喝了|睡了|完成|做了|喂了|测了|洗了|消毒)/;
-  const medicineWords = /(处方|药|服用|口服|饭前|饭后|每日|每天|一天|每次|剂量|片|粒|胶囊|ml|毫升|mg)/i;
-  const abnormalWords = /(疼|痛|吐|发烧|发热|咳|血压|血糖|哭闹|胀气|异常|不适|精神差)/;
+  const medicineWords =
+    scene === "baby"
+      ? /(处方|药|服用|口服|剂量|mg)/i
+      : scene === "pet"
+        ? /(处方|药|喂药|服用|口服|剂量|mg)/i
+        : /(处方|药|服用|口服|饭前|饭后|每日|每天|一天|每次|剂量|片|粒|胶囊|ml|毫升|mg)/i;
+  const abnormalWords = /(疼|痛|吐|呕吐|发烧|发热|咳|血压|血糖|哭闹|胀气|软便|拉稀|异常|不适|精神差|没精神|体温)/;
   const confirms = [];
   const todos = [];
   const completed = [];
@@ -643,13 +1024,14 @@ function buildDraftItems() {
     const due = inferDueTime(sentence);
     const isMedicine = medicineWords.test(sentence);
     const isAbnormal = abnormalWords.test(sentence);
+    const safetyNote = sceneSafetyNote(scene, { isMedicine, isAbnormal });
     if (confirmWords.test(sentence)) {
       confirms.push({
         title: title.startsWith("确认") ? title : `确认${title}`,
         due_time: due || "尽快",
         owner: "现负责照护人",
         priority: isMedicine || isAbnormal ? "high" : "medium",
-        safety_note: isMedicine ? "按医嘱执行；不确定时联系医生或家人确认。" : "",
+        safety_note: safetyNote,
       });
     } else if (doneWords.test(sentence) && !todoWords.test(sentence)) {
       completed.push({ title, time: due, source: "输入预览" });
@@ -659,7 +1041,15 @@ function buildDraftItems() {
         due_time: due || "待定",
         owner: "现负责照护人",
         priority: isMedicine || isAbnormal ? "high" : "medium",
-        safety_note: isMedicine ? "按医嘱执行；图片或处方信息不清楚时联系医生/家人确认。" : "",
+        safety_note: safetyNote,
+      });
+    } else if (isAbnormal && scene !== "elder") {
+      confirms.push({
+        title,
+        due_time: due || "持续观察",
+        owner: "现负责照护人",
+        priority: "high",
+        safety_note: safetyNote,
       });
     }
   });
@@ -667,8 +1057,24 @@ function buildDraftItems() {
   return { confirms: confirms.slice(-8), todos: todos.slice(-10), completed: completed.slice(-8) };
 }
 
+function sceneSafetyNote(scene, flags = {}) {
+  if (!flags.isMedicine && !flags.isAbnormal) return "";
+  if (scene === "baby") {
+    return flags.isMedicine
+      ? "宝宝用药必须按医嘱或儿科建议确认剂量。"
+      : "体温、持续哭闹、吐奶或胀气加重时，建议尽快和家人确认是否就医。";
+  }
+  if (scene === "pet") {
+    return flags.isMedicine
+      ? "宠物用药按兽医要求执行，避免重复喂药。"
+      : "呕吐、软便、精神差或饮水异常要记录频次，必要时联系宠物医院。";
+  }
+  return flags.isMedicine ? "按医嘱执行；图片或处方信息不清楚时联系医生/家人确认。" : "";
+}
+
 function updateDraftFromInput() {
   const text = ($("#careText").value || "").trim();
+  const mode = modeFor();
   if (!text) {
     renderDraftShell(currentSubject());
     return;
@@ -678,16 +1084,16 @@ function updateDraftFromInput() {
     care_subject: currentSubject(),
     date: "今日",
     care_status: draft.confirms.length ? "需确认" : "输入预览",
-    summary: `已读取 ${splitCareSentences(text).length} 条记录，预览到 ${draft.completed.length} 条已完成、${draft.confirms.length} 条待确认、${draft.todos.length} 条下一步。`,
+    summary: `已读取 ${splitCareSentences(text).length} 条记录，预览到 ${draft.completed.length} 条${mode.metrics.completed}、${draft.confirms.length} 条${mode.metrics.confirm}、${draft.todos.length} 条${mode.metrics.todo}。`,
     completed: draft.completed,
     to_confirm: draft.confirms,
     todos: draft.todos,
     risk_notes: [],
-    family_message: "生成后可直接转发到家人群。",
+    family_message: mode.familyMessage,
     emotion_analysis: {
       primary_tone: draft.confirms.length ? "需要确认" : "平稳整理",
       anxiety_level: draft.confirms.length ? 48 : 28,
-      reassurance: "交接卡生成后会把不确定事项单独列出。",
+      reassurance: `${mode.artifactTitle}生成后会把不确定事项单独列出。`,
       stress_points: draft.confirms.map((item) => item.title).slice(0, 3),
     },
     risk_radar: estimateDraftRisks(draft),
@@ -705,18 +1111,19 @@ function updateDraftFromInput() {
 }
 
 function renderDraftShell(subject) {
+  const mode = modeFor();
   renderPreview({
     care_subject: subject,
     date: "今日",
     care_status: "输入预览",
-    summary: "写下今日记录后，会在这里预览交接重点。",
+    summary: mode.emptySummary,
     completed: [],
     to_confirm: [],
     todos: [],
     risk_notes: [],
-    family_message: "生成后可直接转发到家人群。",
+    family_message: mode.familyMessage,
     emotion_analysis: { primary_tone: "需要记录", anxiety_level: 20, reassurance: "", stress_points: [] },
-    risk_radar: { medication: 20, appointment: 20, symptom: 20, communication: 20 },
+    risk_radar: mode.riskDefaults,
     timeline: [],
     interaction_questions: [],
     confidence: 0.72,
@@ -724,9 +1131,10 @@ function renderDraftShell(subject) {
 }
 
 function renderPreview(card) {
+  const mode = modeFor();
   $("#careStatus").textContent = card.care_status || "输入预览";
   $("#cardDate").textContent = card.date || "今日";
-  $("#cardSubject").textContent = `${card.care_subject || currentSubject()}今日交接`;
+  $("#cardSubject").textContent = mode.summaryTitle(card.care_subject || currentSubject());
   $("#summaryText").textContent = card.summary || "";
   const score = healthIndex(card);
   $("#statusScore").textContent = score;
@@ -745,13 +1153,14 @@ function renderPreview(card) {
 }
 
 function estimateDraftRisks(draft) {
+  const mode = modeFor();
   const text = JSON.stringify(draft);
-  return {
-    medication: /药|服用|剂量|处方/.test(text) ? 62 : 18,
-    appointment: /复诊|复查|医院|医生/.test(text) ? 58 : 18,
-    symptom: /血压|发热|发烧|吐|痛|哭闹|不适|异常/.test(text) ? 55 : 22,
-    communication: draft.confirms.length ? 66 : 24,
-  };
+  const risks = { ...mode.riskDefaults };
+  mode.riskRules.forEach(([key, pattern]) => {
+    if (pattern.test(text)) risks[key] = key === "symptom" ? 58 : 54;
+  });
+  if (draft.confirms.length) risks.communication = 66;
+  return risks;
 }
 
 function renderMetrics(card) {
@@ -763,8 +1172,8 @@ function renderMetrics(card) {
 
 function healthIndex(card) {
   const risks = card?.risk_radar || {};
-  const values = ["medication", "appointment", "symptom", "communication"]
-    .map((key) => Number(risks[key]))
+  const values = modeFor()
+    .riskKeys.map((key) => Number(risks[key]))
     .filter((value) => Number.isFinite(value));
   if (!values.length) return Math.round((card?.confidence || 0.72) * 100);
   const riskAverage = values.reduce((sum, value) => sum + Math.max(0, Math.min(100, value)), 0) / values.length;
@@ -841,12 +1250,8 @@ function renderEmotion(emotion) {
 
 function renderRisks(risks) {
   const node = $("#riskBars");
-  const entries = Object.entries({
-    medication: risks.medication ?? 20,
-    appointment: risks.appointment ?? 20,
-    symptom: risks.symptom ?? 20,
-    communication: risks.communication ?? 20,
-  });
+  const mode = modeFor();
+  const entries = mode.riskKeys.map((key) => [key, risks[key] ?? mode.riskDefaults[key] ?? 20]);
   node.innerHTML = entries
     .map(
       ([key, value]) => `
@@ -913,7 +1318,7 @@ function renderSuggestions(items) {
         <span class="memory-card-icon care">AI</span>
         <div>
           <strong>暂无新的建议</strong>
-          <p>生成交接卡后，CareRelay 会把适合长期保存的内容推荐到这里。</p>
+          <p>${escapeHtml(modeFor().memory.suggestionEmpty)}</p>
         </div>
       </div>
     `;
@@ -1033,6 +1438,11 @@ function setupEvents() {
   $$(".nav-item").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   setupVideoEvents();
   document.addEventListener("click", async (event) => {
+    const quick = event.target?.closest?.("[data-quick-input]");
+    if (quick) {
+      appendQuickInput(quick.dataset.quickInput);
+      return;
+    }
     const saveText = event.target?.dataset?.saveMemory;
     const deleteId = event.target?.dataset?.deleteMemory;
     if (saveText) await saveMemory(saveText);

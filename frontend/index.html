@@ -4,13 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>CareRelay AI</title>
+    <link rel="icon" type="image/png" href="/static/logocarerelay.png?v=2" />
+    <link rel="apple-touch-icon" href="/static/logocarerelay.png?v=2" />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="app-shell">
       <aside class="sidebar" aria-label="CareRelay navigation">
         <div class="brand-row">
-          <div class="brand-mark">CR</div>
+          <img class="brand-mark" src="/static/logocarerelay.png?v=2" alt="CareRelay AI logo" />
           <div class="brand-copy">
             <strong>CareRelay AI</strong>
             <span>家庭照护交接</span>
@@ -123,7 +125,15 @@
                 <button class="sample-chip" type="button" data-sample="pet">宠物样例</button>
               </div>
 
-              <label class="care-text-label" for="careText">照护记录</label>
+              <div id="quickInputPanel" class="quick-input-panel hidden" aria-label="场景快速录入">
+                <div class="quick-input-head">
+                  <span id="quickInputTitle">快速补充</span>
+                  <small id="quickInputHint">选择一个重点，自动补到记录里。</small>
+                </div>
+                <div id="quickInputRow" class="quick-input-row"></div>
+              </div>
+
+              <label id="careTextLabel" class="care-text-label" for="careText">照护记录</label>
               <div class="composer-box">
                 <textarea id="careText" rows="12">今天早上8点给爷爷吃了降压药，中午吃了一碗粥，下午血压有点高，晚上还没确认有没有吃药。明天上午9点要去医院复查，医保卡和病历本要提前放包里。</textarea>
                 <div class="composer-tools">
@@ -188,7 +198,7 @@
                   <div id="statusRing" class="score-ring" style="--score: 72">
                     <strong id="statusScore">72</strong>
                   </div>
-                  <span>今日指数</span>
+                  <span id="scoreLabel">今日指数</span>
                 </div>
                 <div class="summary-copy">
                   <h3 id="cardSubject">爷爷今日交接</h3>
@@ -199,25 +209,33 @@
               <div class="metric-strip" aria-label="交接概览">
                 <div>
                   <span id="completedCount">0</span>
-                  <small>已完成</small>
+                  <small id="completedMetricLabel">已完成</small>
                 </div>
                 <div>
                   <span id="confirmCount">0</span>
-                  <small>待确认</small>
+                  <small id="confirmMetricLabel">待确认</small>
                 </div>
                 <div>
                   <span id="todoCount">0</span>
-                  <small>下一步</small>
+                  <small id="todoMetricLabel">下一步</small>
                 </div>
                 <div>
                   <span id="riskCount">0</span>
-                  <small>风险提示</small>
+                  <small id="riskMetricLabel">风险提示</small>
                 </div>
               </div>
 
+              <section id="modeFocusPanel" class="mode-focus-panel hidden">
+                <div class="mode-focus-head">
+                  <span id="modeFocusTitle">场景重点</span>
+                  <small id="modeFocusHint">按当前照护对象整理。</small>
+                </div>
+                <div id="modeFocusCards" class="mode-focus-cards"></div>
+              </section>
+
               <section class="family-message-block">
                 <div class="block-title">
-                  <span>家属消息</span>
+                  <span id="familyBlockTitle">家属消息</span>
                   <button id="copyInlineBtn" class="mini-btn" type="button">复制</button>
                 </div>
                 <p id="familyMessage">生成后可直接转发到家人群。</p>
@@ -226,13 +244,13 @@
               <div class="task-grid">
                 <section class="task-section confirm-section">
                   <div class="block-title">
-                    <span>必须确认</span>
+                    <span id="confirmBlockTitle">必须确认</span>
                   </div>
                   <div id="confirmList" class="task-list"></div>
                 </section>
                 <section class="task-section todo-section">
                   <div class="block-title">
-                    <span>下一步</span>
+                    <span id="todoBlockTitle">下一步</span>
                   </div>
                   <div id="todoList" class="task-list"></div>
                 </section>
@@ -240,7 +258,7 @@
 
               <section class="timeline-section">
                 <div class="block-title">
-                  <span>时间线</span>
+                  <span id="timelineBlockTitle">时间线</span>
                 </div>
                 <div id="timeline" class="timeline"></div>
               </section>
@@ -249,7 +267,7 @@
             <aside class="detail-rail" aria-label="交接详情">
               <section class="panel side-panel visual-panel">
                 <div class="block-title">
-                  <span>信息图</span>
+                  <span id="visualBlockTitle">信息图</span>
                   <b id="visualBadge">待生成</b>
                 </div>
                 <div id="visualStage" class="visual-stage">
@@ -263,14 +281,14 @@
 
               <section class="panel side-panel">
                 <div class="block-title">
-                  <span>风险</span>
+                  <span id="riskBlockTitle">风险</span>
                 </div>
                 <div id="riskBars" class="risk-bars"></div>
               </section>
 
               <section class="panel side-panel">
                 <div class="block-title">
-                  <span>已完成</span>
+                  <span id="completedBlockTitle">已完成</span>
                 </div>
                 <div id="completedList" class="completed-list"></div>
               </section>
@@ -289,7 +307,7 @@
 
               <section class="panel side-panel">
                 <div class="block-title">
-                  <span>追问</span>
+                  <span id="questionBlockTitle">追问</span>
                 </div>
                 <div id="questionList" class="question-list"></div>
               </section>
@@ -315,7 +333,7 @@
             <div class="memory-hero panel">
               <div>
                 <span class="section-kicker">Memory</span>
-                <h2>个性化知识库</h2>
+                <h2 id="memoryTitle">个性化知识库</h2>
                 <p id="memorySubjectHint" class="muted-copy">当前对象：爷爷</p>
               </div>
               <button id="refreshMemoryBtn" class="quiet-btn" type="button">刷新</button>
@@ -326,13 +344,13 @@
                 <div class="memory-card-head">
                   <span class="memory-card-icon compose-icon">+</span>
                   <div>
-                    <h3>新增一条长期记忆</h3>
-                    <p>适合保存复诊准备、用药边界、生活习惯、照护偏好。</p>
+                    <h3 id="memoryComposeTitle">新增一条长期记忆</h3>
+                    <p id="memoryComposeDesc">适合保存复诊准备、用药边界、生活习惯、照护偏好。</p>
                   </div>
                 </div>
                 <textarea id="manualMemoryText" rows="5" placeholder="例如：爷爷复诊前一天要准备医保卡和病历本。"></textarea>
                 <div class="memory-compose-actions">
-                  <span>会自动归入当前照护对象</span>
+                  <span id="memoryComposeHint">会自动归入当前照护对象</span>
                   <button id="saveManualMemoryBtn" class="solid-btn" type="button">保存记忆</button>
                 </div>
               </section>
@@ -343,9 +361,9 @@
                   <strong>条已保存记忆</strong>
                 </div>
                 <div class="memory-type-row">
-                  <span><b id="memoryCareCount">0</b> 照护</span>
-                  <span><b id="memoryMedicalCount">0</b> 医疗</span>
-                  <span><b id="memoryPreferenceCount">0</b> 偏好</span>
+                  <span><b id="memoryCareCount">0</b> <em id="memoryCareLabel">照护</em></span>
+                  <span><b id="memoryMedicalCount">0</b> <em id="memoryMedicalLabel">医疗</em></span>
+                  <span><b id="memoryPreferenceCount">0</b> <em id="memoryPreferenceLabel">偏好</em></span>
                 </div>
               </aside>
             </div>
