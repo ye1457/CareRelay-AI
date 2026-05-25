@@ -1,8 +1,23 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
+const localSamples = {
+  elder: {
+    subject: "爷爷",
+    text: "今天早上8点给爷爷吃了降压药，中午吃了一碗粥，下午血压有点高，晚上还没确认有没有吃药。明天上午9点要去医院复查，医保卡和病历本要提前放包里。",
+  },
+  baby: {
+    subject: "宝宝",
+    text: "宝宝上午10点喝奶120ml，12点睡了40分钟，下午有点哭闹，晚上还没洗澡。奶瓶已经消毒，明天上午要观察有没有继续胀气。",
+  },
+  pet: {
+    subject: "小猫",
+    text: "今天早上给小猫喂了猫粮，下午吐了一次，精神还可以。晚上还没有喂药，明天要带去宠物医院复查，航空箱需要提前准备。",
+  },
+};
+
 const state = {
-  samples: {},
+  samples: localSamples,
   audioBlob: null,
   imageFile: null,
   imageInsights: "",
@@ -23,13 +38,11 @@ const state = {
 };
 
 const progressSteps = [
-  "正在收集多模态输入",
-  "正在整理语音内容",
-  "正在解析图片内容",
-  "检索个人知识库",
+  "正在整理输入",
+  "正在检索知识库",
+  "正在拆解待确认事项",
   "正在生成交接卡",
-  "准备可视化占位",
-  "整理家人群消息",
+  "正在准备家属消息",
 ];
 
 function escapeHtml(value) {
@@ -61,37 +74,66 @@ function riskName(key) {
   }[key] || key;
 }
 
-function imageSrc(card) {
-  if (card.visual_image_b64) return `data:image/png;base64,${card.visual_image_b64}`;
-  if (card.visual_fallback_svg) return `data:image/svg+xml;base64,${card.visual_fallback_svg}`;
-  return "";
+function currentSubject() {
+  return ($("#subjectInput")?.value || "爷爷").trim() || "爷爷";
+}
+
+function currentScene() {
+  return $("#sceneSelect")?.value || "elder";
+}
+
+function sceneLabel(scene) {
+  return { elder: "老人照护", baby: "喂养睡眠", pet: "宠物照护" }[scene] || "家庭照护";
+}
+
+function sceneAvatar(scene, subject) {
+  if (scene === "baby") return "宝";
+  if (scene === "pet") return subject.includes("狗") ? "狗" : "猫";
+  return subject.slice(0, 1) || "人";
+}
+
+function updateTopTitle() {
+  const subject = currentSubject();
+  const scene = currentScene();
+  $("#topTitle").textContent = `${subject}的今日照护`;
+  $("#cardSubject").textContent = `${subject}今日交接`;
+  $("#profileName").textContent = subject;
+  $("#profileMeta").textContent = `${sceneLabel(scene)} · 家庭交接`;
+  $("#profileAvatar").textContent = sceneAvatar(scene, subject);
+  $("#profileAvatar").className = `avatar ${scene === "baby" ? "baby" : scene === "pet" ? "pet" : "elder"}`;
+  $$(".subject-option").forEach((button) => {
+    button.classList.toggle("active", button.dataset.subject === subject || button.dataset.scene === scene);
+  });
+  updateSubjectHints();
 }
 
 function setProgress(active) {
   const box = $("#progressBox");
   const btn = $("#analyzeBtn");
+  const shortcut = $("#analyzeShortcutBtn");
   if (!active) {
     clearInterval(state.progressTimer);
     box.classList.add("hidden");
     btn.classList.remove("loading");
     btn.disabled = false;
+    shortcut.disabled = false;
     return;
   }
   let idx = 0;
   box.classList.remove("hidden");
   btn.classList.add("loading");
   btn.disabled = true;
+  shortcut.disabled = true;
   $("#progressText").textContent = progressSteps[idx];
   clearInterval(state.progressTimer);
   state.progressTimer = setInterval(() => {
     idx = (idx + 1) % progressSteps.length;
     $("#progressText").textContent = progressSteps[idx];
-  }, 1300);
+  }, 1200);
 }
 
 async function loadSamples() {
-  const res = await fetch("/api/samples");
-  state.samples = await res.json();
+  state.samples = localSamples;
 }
 
 async function applySample(key) {
@@ -100,64 +142,163 @@ async function applySample(key) {
   $("#sceneSelect").value = key;
   $("#subjectInput").value = sample.subject;
   $("#careText").value = sample.text;
-  updateSubjectHints();
-  await refreshSubjectCard();
+  state.lastCard = null;
+  disableResultActions();
+  updateTopTitle();
+  await Promise.all([loadMemories(), loadHistory()]);
   updateDraftFromInput();
 }
 
-async function refreshSubjectCard() {
-  const subject = $("#subjectInput").value || "爷爷";
-  updateSubjectHints();
-  const res = await fetch(`/api/offline-card?care_subject=${encodeURIComponent(subject)}`);
-  const card = await res.json();
-  renderResult(card, []);
-  await Promise.all([loadMemories(), loadHistory()]);
+function newHandoff() {
+  const subject = currentSubject();
+  $("#careText").value = "";
+  state.lastCard = null;
+  state.audioBlob = null;
+  state.imageFile = null;
+  state.imageInsights = "";
+  state.imageInspected = false;
+  state.audioDecoded = false;
+  $("#audioStatus").textContent = "未录音";
+  $("#imageStatus").textContent = "未上传";
+  $("#imagePreview").classList.add("hidden");
+  $("#imageInsightsBox").classList.add("hidden");
+  disableResultActions();
+  renderDraftShell(subject);
+  toast("已新建交接");
+}
+
+function disableResultActions() {
+  $("#copyMessageBtn").disabled = true;
+  $("#speakBtn").disabled = true;
 }
 
 async function loadMemories() {
-  const subject = encodeURIComponent($("#subjectInput").value || "爷爷");
-  const res = await fetch(`/api/memory?user_id=demo_user&care_subject=${subject}`);
-  const data = await res.json();
-  renderMemoryHits(data.memories || [], "memoryHits");
-  updateSubjectHints();
+  const subject = encodeURIComponent(currentSubject());
+  try {
+    const res = await fetch(`/api/memory?user_id=demo_user&care_subject=${subject}`);
+    const data = await res.json();
+    renderMemoryHits(data.memories || [], "memoryHits");
+  } catch (_) {
+    renderMemoryHits([], "memoryHits");
+  }
 }
 
 async function loadHistory() {
-  const subject = encodeURIComponent($("#subjectInput").value || "");
-  const res = await fetch(`/api/history?user_id=demo_user&care_subject=${subject}&limit=8`);
-  const data = await res.json();
-  renderHistory(data.records || []);
+  const subject = encodeURIComponent(currentSubject());
+  try {
+    const res = await fetch(`/api/history?user_id=demo_user&care_subject=${subject}&limit=10`);
+    const data = await res.json();
+    renderHistory(data.records || []);
+  } catch (_) {
+    renderHistory([]);
+  }
 }
 
 function renderMemoryHits(memories, targetId = "memoryHits") {
   const node = $(`#${targetId}`);
   if (!node) return;
+  updateMemoryStats(memories);
   if (!memories.length) {
-    node.innerHTML = `<div class="memory-item"><span>暂无已保存记忆</span></div>`;
+    node.innerHTML = `
+      <div class="memory-empty-card">
+        <span class="memory-card-icon care">记</span>
+        <div>
+          <strong>还没有保存的长期记忆</strong>
+          <p>把复诊准备、用药提醒、生活习惯或照护偏好保存下来，之后生成交接卡时会自动参考。</p>
+        </div>
+      </div>
+    `;
     return;
   }
   node.innerHTML = memories
-    .map(
-      (item) => `
-      <div class="memory-item">
-        <span>${escapeHtml(item.text)}<br><small>${escapeHtml(item.label)} · ${(item.score || 1).toFixed(2)}</small></span>
-        ${item.id ? `<button data-delete-memory="${item.id}">删除</button>` : ""}
-      </div>
-    `,
-    )
+    .map((item) => {
+      const meta = memoryMeta(item.text, item.label);
+      const score = Math.round(Number(item.score || 1) * 100);
+      return `
+        <article class="memory-card ${meta.type}">
+          <div class="memory-card-top">
+            <span class="memory-card-icon ${meta.type}">${meta.icon}</span>
+            <div>
+              <strong>${meta.title}</strong>
+              <small>${escapeHtml(currentSubject())} · ${escapeHtml(item.label || "profile")}</small>
+            </div>
+            ${item.id ? `<button class="memory-delete-btn" type="button" data-delete-memory="${item.id}">删除</button>` : ""}
+          </div>
+          <p>${escapeHtml(item.text)}</p>
+          <div class="memory-card-foot">
+            <span>${meta.hint}</span>
+            <b>${score}%</b>
+          </div>
+          <div class="memory-confidence"><span style="width:${Math.max(8, Math.min(100, score))}%"></span></div>
+        </article>
+      `;
+    })
     .join("");
 }
 
+function updateMemoryStats(memories) {
+  const countNode = $("#memoryCount");
+  if (!countNode) return;
+  const stats = memories.reduce(
+    (acc, item) => {
+      const type = memoryMeta(item.text, item.label).type;
+      acc.total += 1;
+      if (type === "medical") acc.medical += 1;
+      else if (type === "preference") acc.preference += 1;
+      else acc.care += 1;
+      return acc;
+    },
+    { total: 0, care: 0, medical: 0, preference: 0 },
+  );
+  $("#memoryCount").textContent = stats.total;
+  $("#memoryCareCount").textContent = stats.care;
+  $("#memoryMedicalCount").textContent = stats.medical;
+  $("#memoryPreferenceCount").textContent = stats.preference;
+}
+
+function memoryMeta(text = "", label = "") {
+  const value = `${text} ${label}`;
+  if (/复诊|复查|医院|医生|医保|病历|处方|药|服用|剂量|血压|血糖|症状|不适/.test(value)) {
+    return {
+      type: "medical",
+      icon: "医",
+      title: "医疗与复诊",
+      hint: "生成交接卡时优先用于安全提醒",
+    };
+  }
+  if (/喜欢|不喜欢|习惯|偏好|睡前|饮食|口味|安抚|拍嗝|猫砂|玩具/.test(value)) {
+    return {
+      type: "preference",
+      icon: "好",
+      title: "偏好与习惯",
+      hint: "用于个性化照护建议",
+    };
+  }
+  return {
+    type: "care",
+    icon: "护",
+    title: "日常照护",
+    hint: "用于补全交接上下文",
+  };
+}
+
+function suggestionMeta(text = "") {
+  const meta = memoryMeta(text, "suggestion");
+  return {
+    ...meta,
+    title: meta.type === "medical" ? "建议保存为医疗记忆" : meta.type === "preference" ? "建议保存为偏好记忆" : "建议保存为照护记忆",
+  };
+}
+
 function updateSubjectHints() {
-  const subject = $("#subjectInput")?.value || "爷爷";
   const hint = $("#memorySubjectHint");
-  if (hint) hint.textContent = `当前对象：${subject}。这里保存的偏好和常规事项只会用于这个对象。`;
+  if (hint) hint.textContent = `当前对象：${currentSubject()}。`;
 }
 
 async function saveMemory(text) {
   const payload = {
     user_id: "demo_user",
-    care_subject: $("#subjectInput").value || "爷爷",
+    care_subject: currentSubject(),
     text,
     label: "confirmed",
   };
@@ -166,16 +307,16 @@ async function saveMemory(text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error("save memory failed");
+  if (!res.ok) throw new Error("保存失败");
   const data = await res.json();
   renderMemoryHits(data.memories || []);
-  toast("已保存到个人知识库");
+  toast("已保存到知识库");
 }
 
 async function saveManualMemory() {
   const text = ($("#manualMemoryText")?.value || "").trim();
   if (!text) {
-    toast("请先填写要记住的内容");
+    toast("请先填写内容");
     return;
   }
   await saveMemory(text);
@@ -184,7 +325,7 @@ async function saveManualMemory() {
 
 async function deleteMemory(id) {
   const res = await fetch(`/api/memory/${id}?user_id=demo_user`, { method: "DELETE" });
-  if (!res.ok) throw new Error("delete memory failed");
+  if (!res.ok) throw new Error("删除失败");
   await loadMemories();
   toast("已删除记忆");
 }
@@ -199,12 +340,11 @@ function appendDecodedText(title, content) {
 }
 
 async function transcribeAudioFile(fileOrBlob, filename = "care-audio.webm") {
-  if (!fileOrBlob) return;
-  if (state.audioTranscribing) return;
+  if (!fileOrBlob || state.audioTranscribing) return;
   const form = new FormData();
   form.append("audio", fileOrBlob, filename);
   state.audioTranscribing = true;
-  $("#audioStatus").textContent = "后台转写中，可继续输入或先生成";
+  $("#audioStatus").textContent = "转写中";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
@@ -212,18 +352,18 @@ async function transcribeAudioFile(fileOrBlob, filename = "care-audio.webm") {
     const data = await res.json();
     if (data.ok && data.transcript) {
       state.audioDecoded = true;
-      $("#audioStatus").textContent = "语音已转写到文本框";
+      $("#audioStatus").textContent = "已转写";
       appendDecodedText("【语音转写】", data.transcript);
       toast("语音已转写");
     } else {
       state.audioDecoded = false;
-      $("#audioStatus").textContent = "转写失败，生成时仍会尝试处理音频";
+      $("#audioStatus").textContent = "转写失败";
       toast((data.warnings || ["语音转写失败"])[0]);
     }
   } catch (error) {
     state.audioDecoded = false;
-    $("#audioStatus").textContent = error.name === "AbortError" ? "转写时间较长，可先手动补充或继续生成" : "转写失败，可继续录音或上传";
-    toast(error.name === "AbortError" ? "语音正在后台处理，先不阻塞操作" : `语音转写失败：${error.message}`);
+    $("#audioStatus").textContent = error.name === "AbortError" ? "转写较慢" : "转写失败";
+    toast(error.name === "AbortError" ? "语音转写较慢，可先继续整理" : `语音转写失败：${error.message}`);
   } finally {
     clearTimeout(timer);
     state.audioTranscribing = false;
@@ -234,28 +374,28 @@ async function inspectImageFile(file) {
   if (!file) return;
   const form = new FormData();
   form.append("image", file, file.name || "care-image.png");
-  $("#imageStatus").textContent = "正在解析图片";
+  $("#imageStatus").textContent = "解析中";
   $("#imageInsightsBox").classList.remove("hidden");
-  $("#imageInsightsBox").textContent = "正在读取图片中的照护信息...";
+  $("#imageInsightsBox").textContent = "正在读取图片内容...";
   try {
     const res = await fetch("/api/inspect-image", { method: "POST", body: form });
     const data = await res.json();
     if (data.ok && data.insights) {
       state.imageInsights = data.insights;
       state.imageInspected = true;
-      $("#imageStatus").textContent = "图片信息已加入文本框";
+      $("#imageStatus").textContent = "已加入记录";
       $("#imageInsightsBox").textContent = data.insights;
       appendDecodedText("【图片解析】", data.insights);
       toast("图片内容已解析");
     } else {
       state.imageInspected = false;
-      $("#imageStatus").textContent = "图片解析失败，生成时仍会尝试处理图片";
+      $("#imageStatus").textContent = "解析失败";
       $("#imageInsightsBox").textContent = (data.warnings || ["图片解析失败"])[0];
       toast((data.warnings || ["图片解析失败"])[0]);
     }
   } catch (error) {
     state.imageInspected = false;
-    $("#imageStatus").textContent = "图片解析失败，生成时仍会尝试处理图片";
+    $("#imageStatus").textContent = "解析失败";
     $("#imageInsightsBox").textContent = `图片解析失败：${error.message}`;
     toast(`图片解析失败：${error.message}`);
   }
@@ -264,10 +404,9 @@ async function inspectImageFile(file) {
 async function setupRecorder() {
   const recordBtn = $("#recordBtn");
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let recognition = null;
 
   if (SpeechRecognition) {
-    recognition = new SpeechRecognition();
+    const recognition = new SpeechRecognition();
     recognition.lang = "zh-CN";
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -283,11 +422,11 @@ async function setupRecorder() {
         if (event.results[i].isFinal) state.browserSpeechText += text;
         else interim += text;
       }
-      $("#audioStatus").textContent = interim ? `识别中：${interim}` : "正在识别中文语音";
+      $("#audioStatus").textContent = interim ? `识别中：${interim}` : "识别中";
     };
-    recognition.onerror = (event) => {
+    recognition.onerror = () => {
       state.recognizing = false;
-      $("#audioStatus").textContent = `浏览器识别不可用，仍在录音：${event.error || "unknown"}`;
+      $("#audioStatus").textContent = "浏览器识别不可用";
     };
     recognition.onend = () => {
       state.recognizing = false;
@@ -300,9 +439,10 @@ async function setupRecorder() {
 
   if (!navigator.mediaDevices || !window.MediaRecorder) {
     recordBtn.disabled = true;
-    $("#audioStatus").textContent = "浏览器不支持录音，可上传音频";
+    $("#audioStatus").textContent = "浏览器不支持";
     return;
   }
+
   recordBtn.addEventListener("click", async () => {
     if (state.mediaRecorder && state.mediaRecorder.state === "recording") {
       if (state.speechRecognition && state.recognizing) {
@@ -311,12 +451,13 @@ async function setupRecorder() {
         } catch (_) {}
       }
       recordBtn.classList.remove("recording");
-      $("#audioStatus").textContent = "录音结束，正在整理语音";
+      $("#audioStatus").textContent = "整理中";
       setTimeout(() => {
         if (state.mediaRecorder && state.mediaRecorder.state === "recording") state.mediaRecorder.stop();
-      }, 450);
+      }, 420);
       return;
     }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       state.micStream = stream;
@@ -327,17 +468,17 @@ async function setupRecorder() {
         if (event.data && event.data.size) state.recordedChunks.push(event.data);
       };
       state.mediaRecorder.onerror = () => {
-        $("#audioStatus").textContent = "录音失败，请检查浏览器麦克风权限";
+        $("#audioStatus").textContent = "录音失败";
       };
       state.mediaRecorder.onstop = async () => {
         state.audioBlob = new Blob(state.recordedChunks, { type: "audio/webm" });
         state.micStream?.getTracks().forEach((track) => track.stop());
         state.micStream = null;
         if (state.browserSpeechText.trim()) {
-          $("#audioStatus").textContent = "浏览器已识别，同时保留录音";
+          $("#audioStatus").textContent = "已识别";
           toast("语音已识别");
         } else {
-          $("#audioStatus").textContent = `已录制 ${(state.audioBlob.size / 1024).toFixed(1)} KB，后台转写中`;
+          $("#audioStatus").textContent = `已录制 ${(state.audioBlob.size / 1024).toFixed(1)} KB`;
           transcribeAudioFile(state.audioBlob, "care-recording.webm");
         }
       };
@@ -350,9 +491,9 @@ async function setupRecorder() {
         } catch (_) {}
       }
       recordBtn.classList.add("recording");
-      $("#audioStatus").textContent = "录音中，再点一次停止";
+      $("#audioStatus").textContent = "录音中";
     } catch (error) {
-      $("#audioStatus").textContent = "无法访问麦克风，请在浏览器地址栏允许麦克风权限";
+      $("#audioStatus").textContent = "无法访问麦克风";
       toast(`无法访问麦克风：${error.message}`);
     }
   });
@@ -363,15 +504,16 @@ function setupUploads() {
     const file = event.target.files[0];
     state.audioBlob = null;
     state.audioDecoded = false;
-    $("#audioStatus").textContent = file ? file.name : "未录制";
+    $("#audioStatus").textContent = file ? file.name : "未录音";
     if (file) transcribeAudioFile(file, file.name);
   });
+
   $("#imageUpload").addEventListener("change", (event) => {
     const file = event.target.files[0];
     state.imageFile = file || null;
     state.imageInsights = "";
     state.imageInspected = false;
-    $("#imageStatus").textContent = file ? file.name : "药盒 / 复诊单 / 截图";
+    $("#imageStatus").textContent = file ? file.name : "未上传";
     const preview = $("#imagePreview");
     if (!file) {
       preview.classList.add("hidden");
@@ -387,12 +529,13 @@ async function analyze() {
   setProgress(true);
   const wantsVisual = $("#visualToggle").checked;
   const form = new FormData();
-  form.append("care_subject", $("#subjectInput").value || "爷爷");
+  form.append("care_subject", currentSubject());
   form.append("user_id", "demo_user");
   form.append("text", $("#careText").value || "");
   form.append("use_visual", "false");
+
   if (state.audioTranscribing) {
-    toast("语音仍在后台转写，本次先使用已有文本");
+    toast("语音仍在转写，本次先使用已有文本");
   } else if (state.audioBlob && !state.audioDecoded) {
     form.append("audio", state.audioBlob, "care-recording.webm");
   } else if ($("#audioUpload").files[0] && !state.audioDecoded) {
@@ -414,14 +557,19 @@ async function analyze() {
   }
 }
 
+function imageSrc(card) {
+  if (card?.visual_image_b64) return `data:image/png;base64,${card.visual_image_b64}`;
+  if (card?.visual_fallback_svg) return `data:image/svg+xml;base64,${card.visual_fallback_svg}`;
+  return "";
+}
+
 function renderResult(card, warnings = []) {
-  state.hasGenerated = true;
   state.lastCard = card;
   $("#copyMessageBtn").disabled = false;
   $("#speakBtn").disabled = false;
   $("#careStatus").textContent = card.care_status || "需确认";
   $("#cardDate").textContent = card.date || "今日";
-  $("#cardSubject").textContent = `${card.care_subject || "照护对象"}今日交接`;
+  $("#cardSubject").textContent = `${card.care_subject || currentSubject()}今日交接`;
   $("#summaryText").textContent = card.summary || "";
   const score = healthIndex(card);
   $("#statusScore").textContent = score;
@@ -434,10 +582,11 @@ function renderResult(card, warnings = []) {
     $("#warnings").classList.add("hidden");
   }
 
-  renderTimeline(card.timeline || []);
+  renderMetrics(card);
   renderTaskList(card.to_confirm || [], "confirmList");
   renderTaskList(card.todos || [], "todoList");
   renderCompleted(card.completed || []);
+  renderTimeline(card.timeline || []);
   renderEmotion(card.emotion_analysis || {});
   renderRisks(card.risk_radar || {});
   renderVisual(card);
@@ -477,17 +626,6 @@ function inferDueTime(sentence) {
   return match ? match[1].replace(/\s+/g, "") : "";
 }
 
-function healthIndex(card) {
-  const risks = card?.risk_radar || {};
-  const values = ["medication", "appointment", "symptom", "communication"]
-    .map((key) => Number(risks[key]))
-    .filter((value) => Number.isFinite(value));
-  if (!values.length) return Math.round((card?.confidence || 0.72) * 100);
-  const riskAverage = values.reduce((sum, value) => sum + Math.max(0, Math.min(100, value)), 0) / values.length;
-  const pendingPenalty = Math.min(16, (card.to_confirm || []).length * 3);
-  return Math.max(35, Math.min(98, Math.round(100 - riskAverage * 0.48 - pendingPenalty)));
-}
-
 function buildDraftItems() {
   const text = $("#careText").value || "";
   const sentences = splitCareSentences(text);
@@ -499,6 +637,7 @@ function buildDraftItems() {
   const confirms = [];
   const todos = [];
   const completed = [];
+
   sentences.forEach((sentence) => {
     const title = cleanDraftTitle(sentence);
     const due = inferDueTime(sentence);
@@ -508,9 +647,9 @@ function buildDraftItems() {
       confirms.push({
         title: title.startsWith("确认") ? title : `确认${title}`,
         due_time: due || "尽快",
-        owner: "现负责监护人",
+        owner: "现负责照护人",
         priority: isMedicine || isAbnormal ? "high" : "medium",
-        safety_note: isMedicine ? "按医嘱执行；不确定时联系医生或家人确认。" : "输入预览，生成后会进一步校验。",
+        safety_note: isMedicine ? "按医嘱执行；不确定时联系医生或家人确认。" : "",
       });
     } else if (doneWords.test(sentence) && !todoWords.test(sentence)) {
       completed.push({ title, time: due, source: "输入预览" });
@@ -518,77 +657,143 @@ function buildDraftItems() {
       todos.push({
         title: isMedicine && !title.includes("确认") ? `按原文确认用药安排：${title}` : title,
         due_time: due || "待定",
-        owner: "现负责监护人",
+        owner: "现负责照护人",
         priority: isMedicine || isAbnormal ? "high" : "medium",
         safety_note: isMedicine ? "按医嘱执行；图片或处方信息不清楚时联系医生/家人确认。" : "",
       });
     }
   });
+
   return { confirms: confirms.slice(-8), todos: todos.slice(-10), completed: completed.slice(-8) };
 }
 
 function updateDraftFromInput() {
   const text = ($("#careText").value || "").trim();
-  if (!text) return;
-  const draft = buildDraftItems();
-  $("#summaryText").textContent = `已读取输入内容，发现 ${draft.todos.length} 条可能待办、${draft.confirms.length} 条待确认。点击生成可获得完整交接卡。`;
-  $("#careStatus").textContent = draft.confirms.length ? "需确认" : "输入预览";
-  renderTaskList(draft.confirms, "confirmList");
-  renderTaskList(draft.todos, "todoList");
-  renderCompleted(draft.completed);
-  const timeline = [...draft.completed.map((item) => ({ time: "已记录", label: item.title, type: "done", detail: "来自输入预览" })), ...draft.todos.map((item) => ({ time: item.due_time, label: item.title, type: "todo", detail: "来自输入预览" }))].slice(-6);
-  renderTimeline(timeline);
-}
-
-function scheduleDraftUpdate() {
-  state.hasGenerated = false;
-  clearTimeout(state.draftTimer);
-  state.draftTimer = setTimeout(updateDraftFromInput, 260);
-}
-
-function renderTimeline(items) {
-  const node = $("#timeline");
-  if (!items.length) {
-    node.innerHTML = `<div class="timeline-item"><div class="time-chip">待定</div><div><h4>暂无时间线</h4><p>生成后会显示照护事件。</p></div></div>`;
+  if (!text) {
+    renderDraftShell(currentSubject());
     return;
   }
-  node.innerHTML = items
-    .map(
-      (item) => `
-      <div class="timeline-item ${escapeHtml(item.type || "care")}">
-        <div class="time-chip">${escapeHtml(item.time || "待定")}</div>
-        <div>
-          <h4>${escapeHtml(item.label || "")}</h4>
-          <p>${escapeHtml(item.detail || "")}</p>
-        </div>
-      </div>
-    `,
-    )
-    .join("");
+  const draft = buildDraftItems();
+  const card = {
+    care_subject: currentSubject(),
+    date: "今日",
+    care_status: draft.confirms.length ? "需确认" : "输入预览",
+    summary: `已读取 ${splitCareSentences(text).length} 条记录，预览到 ${draft.completed.length} 条已完成、${draft.confirms.length} 条待确认、${draft.todos.length} 条下一步。`,
+    completed: draft.completed,
+    to_confirm: draft.confirms,
+    todos: draft.todos,
+    risk_notes: [],
+    family_message: "生成后可直接转发到家人群。",
+    emotion_analysis: {
+      primary_tone: draft.confirms.length ? "需要确认" : "平稳整理",
+      anxiety_level: draft.confirms.length ? 48 : 28,
+      reassurance: "交接卡生成后会把不确定事项单独列出。",
+      stress_points: draft.confirms.map((item) => item.title).slice(0, 3),
+    },
+    risk_radar: estimateDraftRisks(draft),
+    timeline: [
+      ...draft.completed.map((item) => ({ time: item.time || "已记录", label: item.title, type: "done", detail: "输入预览" })),
+      ...draft.confirms.map((item) => ({ time: item.due_time || "尽快", label: item.title, type: "confirm", detail: item.safety_note || "待确认" })),
+      ...draft.todos.map((item) => ({ time: item.due_time || "待定", label: item.title, type: "todo", detail: item.safety_note || "下一步" })),
+    ].slice(-8),
+    visual_image_b64: "",
+    visual_fallback_svg: "",
+    confidence: 0.68,
+    interaction_questions: draft.confirms.slice(0, 3).map((item) => item.title),
+  };
+  renderPreview(card);
+}
+
+function renderDraftShell(subject) {
+  renderPreview({
+    care_subject: subject,
+    date: "今日",
+    care_status: "输入预览",
+    summary: "写下今日记录后，会在这里预览交接重点。",
+    completed: [],
+    to_confirm: [],
+    todos: [],
+    risk_notes: [],
+    family_message: "生成后可直接转发到家人群。",
+    emotion_analysis: { primary_tone: "需要记录", anxiety_level: 20, reassurance: "", stress_points: [] },
+    risk_radar: { medication: 20, appointment: 20, symptom: 20, communication: 20 },
+    timeline: [],
+    interaction_questions: [],
+    confidence: 0.72,
+  });
+}
+
+function renderPreview(card) {
+  $("#careStatus").textContent = card.care_status || "输入预览";
+  $("#cardDate").textContent = card.date || "今日";
+  $("#cardSubject").textContent = `${card.care_subject || currentSubject()}今日交接`;
+  $("#summaryText").textContent = card.summary || "";
+  const score = healthIndex(card);
+  $("#statusScore").textContent = score;
+  $("#statusRing").style.setProperty("--score", score);
+  $("#warnings").classList.add("hidden");
+  renderMetrics(card);
+  renderTaskList(card.to_confirm || [], "confirmList");
+  renderTaskList(card.todos || [], "todoList");
+  renderCompleted(card.completed || []);
+  renderTimeline(card.timeline || []);
+  renderEmotion(card.emotion_analysis || {});
+  renderRisks(card.risk_radar || {});
+  renderVisual({});
+  $("#familyMessage").textContent = card.family_message || "";
+  renderQuestions(card.interaction_questions || []);
+}
+
+function estimateDraftRisks(draft) {
+  const text = JSON.stringify(draft);
+  return {
+    medication: /药|服用|剂量|处方/.test(text) ? 62 : 18,
+    appointment: /复诊|复查|医院|医生/.test(text) ? 58 : 18,
+    symptom: /血压|发热|发烧|吐|痛|哭闹|不适|异常/.test(text) ? 55 : 22,
+    communication: draft.confirms.length ? 66 : 24,
+  };
+}
+
+function renderMetrics(card) {
+  $("#completedCount").textContent = (card.completed || []).length;
+  $("#confirmCount").textContent = (card.to_confirm || []).length;
+  $("#todoCount").textContent = (card.todos || []).length;
+  $("#riskCount").textContent = (card.risk_notes || []).length + (card.abnormal_signals || []).length;
+}
+
+function healthIndex(card) {
+  const risks = card?.risk_radar || {};
+  const values = ["medication", "appointment", "symptom", "communication"]
+    .map((key) => Number(risks[key]))
+    .filter((value) => Number.isFinite(value));
+  if (!values.length) return Math.round((card?.confidence || 0.72) * 100);
+  const riskAverage = values.reduce((sum, value) => sum + Math.max(0, Math.min(100, value)), 0) / values.length;
+  const pendingPenalty = Math.min(18, (card.to_confirm || []).length * 3);
+  return Math.max(35, Math.min(98, Math.round(100 - riskAverage * 0.48 - pendingPenalty)));
 }
 
 function renderTaskList(items, targetId) {
   const node = $(`#${targetId}`);
   if (!items.length) {
-    node.innerHTML = `<div class="task-item"><div class="task-title">暂无事项</div></div>`;
+    node.innerHTML = `<div class="task-item"><div class="task-title"><span></span><span>暂无事项</span></div></div>`;
     return;
   }
   node.innerHTML = items
     .map(
       (item) => `
-      <div class="task-item">
-        <label class="task-title">
-          <input type="checkbox" />
-          <span>${escapeHtml(item.title)}</span>
-        </label>
-        <div class="task-meta">
-          <span>${escapeHtml(item.due_time || "时间待定")}</span>
-          <span>${escapeHtml(item.owner || "家人")}</span>
-          <span>${priorityText(item.priority)}</span>
+        <div class="task-item">
+          <label class="task-title">
+            <input type="checkbox" />
+            <span>${escapeHtml(item.title)}</span>
+          </label>
+          <div class="task-meta">
+            <span>${escapeHtml(item.due_time || "时间待定")}</span>
+            <span>${escapeHtml(item.owner || "家人")}</span>
+            <span>${priorityText(item.priority)}</span>
+          </div>
+          ${item.safety_note ? `<p class="task-note">${escapeHtml(item.safety_note)}</p>` : ""}
         </div>
-        ${item.safety_note ? `<p class="task-note">${escapeHtml(item.safety_note)}</p>` : ""}
-      </div>
-    `,
+      `,
     )
     .join("");
 }
@@ -601,6 +806,27 @@ function renderCompleted(items) {
   }
   node.innerHTML = items
     .map((item) => `<span class="completed-pill">${escapeHtml(item.time || "")} ${escapeHtml(item.title || item)}</span>`)
+    .join("");
+}
+
+function renderTimeline(items) {
+  const node = $("#timeline");
+  if (!items.length) {
+    node.innerHTML = `<div class="timeline-item"><div class="time-chip">待定</div><div><h4>暂无时间线</h4><p>生成后显示照护事件。</p></div></div>`;
+    return;
+  }
+  node.innerHTML = items
+    .map(
+      (item) => `
+        <div class="timeline-item ${escapeHtml(item.type || "care")}">
+          <div class="time-chip">${escapeHtml(item.time || "待定")}</div>
+          <div>
+            <h4>${escapeHtml(item.label || "")}</h4>
+            <p>${escapeHtml(item.detail || "")}</p>
+          </div>
+        </div>
+      `,
+    )
     .join("");
 }
 
@@ -624,21 +850,30 @@ function renderRisks(risks) {
   node.innerHTML = entries
     .map(
       ([key, value]) => `
-      <div class="risk-row">
-        <span>${riskName(key)}</span>
-        <div class="risk-track"><span style="width:${Math.max(0, Math.min(100, value))}%"></span></div>
-        <strong>${value}</strong>
-      </div>
-    `,
+        <div class="risk-row">
+          <span>${riskName(key)}</span>
+          <div class="risk-track"><span style="width:${Math.max(0, Math.min(100, value))}%"></span></div>
+          <strong>${value}</strong>
+        </div>
+      `,
     )
     .join("");
 }
 
 function renderVisual(card) {
   const src = imageSrc(card);
-  if (src) $("#visualImage").src = src;
-  else $("#visualImage").removeAttribute("src");
-  $("#visualBadge").textContent = card.visual_image_b64 ? "已生成" : "备用图";
+  const img = $("#visualImage");
+  const empty = $("#visualEmpty");
+  if (src) {
+    img.src = src;
+    img.classList.remove("hidden");
+    empty.classList.add("hidden");
+  } else {
+    img.removeAttribute("src");
+    img.classList.add("hidden");
+    empty.classList.remove("hidden");
+  }
+  $("#visualBadge").textContent = card?.visual_image_b64 ? "已生成" : card?.visual_fallback_svg ? "备用图" : "待生成";
 }
 
 async function generateVisualAsync(card) {
@@ -673,24 +908,42 @@ async function generateVisualAsync(card) {
 function renderSuggestions(items) {
   const node = $("#memorySuggestions");
   if (!items.length) {
-    node.innerHTML = "";
+    node.innerHTML = `
+      <div class="suggestion-empty-card">
+        <span class="memory-card-icon care">AI</span>
+        <div>
+          <strong>暂无新的建议</strong>
+          <p>生成交接卡后，CareRelay 会把适合长期保存的内容推荐到这里。</p>
+        </div>
+      </div>
+    `;
     return;
   }
   node.innerHTML = items
-    .map(
-      (item) => `
-      <div class="suggestion-item">
-        <span>${escapeHtml(item)}</span>
-        <button data-save-memory="${escapeHtml(item)}">保存</button>
-      </div>
-    `,
-    )
+    .map((item) => {
+      const meta = suggestionMeta(item);
+      return `
+        <article class="suggestion-card ${meta.type}">
+          <div class="memory-card-top">
+            <span class="memory-card-icon ${meta.type}">${meta.icon}</span>
+            <div>
+              <strong>${meta.title}</strong>
+              <small>${escapeHtml(currentSubject())} · AI 建议</small>
+            </div>
+          </div>
+          <p>${escapeHtml(item)}</p>
+          <div class="suggestion-card-actions">
+            <span>${meta.hint}</span>
+            <button type="button" data-save-memory="${escapeHtml(item)}">保存为记忆</button>
+          </div>
+        </article>
+      `;
+    })
     .join("");
 }
 
 function renderQuestions(items) {
   const node = $("#questionList");
-  if (!node) return;
   if (!items.length) {
     node.innerHTML = `<div class="question-item">暂无追问</div>`;
     return;
@@ -707,11 +960,11 @@ function renderHistory(records) {
   node.innerHTML = records
     .map(
       (item) => `
-      <div class="history-item">
-        <strong>${escapeHtml(item.care_subject)} · ${escapeHtml(item.created_at)}</strong>
-        <p>${escapeHtml(item.summary || item.input_text || "已生成交接记录")}</p>
-      </div>
-    `,
+        <div class="history-item">
+          <strong>${escapeHtml(item.care_subject)} · ${escapeHtml(item.created_at)}</strong>
+          <p>${escapeHtml(item.summary || item.input_text || "已生成交接记录")}</p>
+        </div>
+      `,
     )
     .join("");
 }
@@ -727,56 +980,71 @@ function speak() {
 
 function copyMessage() {
   const message = state.lastCard?.family_message || $("#familyMessage").textContent;
-  navigator.clipboard.writeText(message).then(() => toast("已复制家人群消息"));
+  navigator.clipboard.writeText(message).then(() => toast("已复制家属消息"));
+}
+
+function showPage(pageId) {
+  $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.page === pageId));
+  $$(".page").forEach((page) => page.classList.toggle("active", page.id === pageId));
 }
 
 function setupEvents() {
-  $$(".sample-chip").forEach((button) => button.addEventListener("click", () => applySample(button.dataset.sample)));
+  $$("[data-sample]").forEach((button) => button.addEventListener("click", () => applySample(button.dataset.sample)));
+  $$(".subject-option").forEach((button) => {
+    button.addEventListener("click", async () => {
+      $("#subjectInput").value = button.dataset.subject;
+      $("#sceneSelect").value = button.dataset.scene;
+      updateTopTitle();
+      await Promise.all([loadMemories(), loadHistory()]);
+      updateDraftFromInput();
+    });
+  });
   $("#sceneSelect").addEventListener("change", (event) => applySample(event.target.value));
+  $("#newHandoffBtn").addEventListener("click", newHandoff);
   $("#analyzeBtn").addEventListener("click", analyze);
+  $("#analyzeShortcutBtn").addEventListener("click", analyze);
   $("#speakBtn").addEventListener("click", speak);
   $("#copyMessageBtn").addEventListener("click", copyMessage);
+  $("#copyInlineBtn").addEventListener("click", copyMessage);
   $("#refreshMemoryBtn").addEventListener("click", loadMemories);
   $("#refreshHistoryBtn").addEventListener("click", loadHistory);
   $("#saveManualMemoryBtn").addEventListener("click", saveManualMemory);
   $("#careText").addEventListener("input", scheduleDraftUpdate);
-  $("#subjectInput").addEventListener("change", refreshSubjectCard);
-  $("#subjectInput").addEventListener("input", () => {
-    updateSubjectHints();
-    clearTimeout(state.subjectTimer);
-    state.subjectTimer = setTimeout(refreshSubjectCard, 520);
+  $("#subjectInput").addEventListener("change", async () => {
+    updateTopTitle();
+    await Promise.all([loadMemories(), loadHistory()]);
+    updateDraftFromInput();
   });
-  $("#visualImage").addEventListener("click", () => {
+  $("#subjectInput").addEventListener("input", () => {
+    updateTopTitle();
+    clearTimeout(state.subjectTimer);
+    state.subjectTimer = setTimeout(() => {
+      loadMemories();
+      loadHistory();
+    }, 520);
+  });
+  $("#visualStage").addEventListener("click", () => {
     const src = $("#visualImage").src;
     if (!src) return;
     $("#lightboxImage").src = src;
     $("#imageLightbox").classList.remove("hidden");
   });
   $("#imageLightbox").addEventListener("click", () => $("#imageLightbox").classList.add("hidden"));
-  $$(".rail-btn").forEach((button) => {
-    button.addEventListener("click", () => {
-      showPage(button.dataset.page);
-    });
-  });
-  $("#railToggle").addEventListener("click", () => $(".app-shell").classList.toggle("rail-open"));
+  $$(".nav-item").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   setupVideoEvents();
   document.addEventListener("click", async (event) => {
     const saveText = event.target?.dataset?.saveMemory;
     const deleteId = event.target?.dataset?.deleteMemory;
-    if (saveText) {
-      await saveMemory(saveText);
-    }
-    if (deleteId) {
-      await deleteMemory(deleteId);
-    }
+    if (saveText) await saveMemory(saveText);
+    if (deleteId) await deleteMemory(deleteId);
   });
 }
 
-function showPage(pageId) {
-  $$(".rail-btn").forEach((item) => item.classList.toggle("active", item.dataset.page === pageId));
-  $$(".page").forEach((page) => page.classList.toggle("active", page.id === pageId));
-  const page = document.getElementById(pageId);
-  page?.querySelector(".panel")?.focus?.();
+function scheduleDraftUpdate() {
+  state.lastCard = null;
+  disableResultActions();
+  clearTimeout(state.draftTimer);
+  state.draftTimer = setTimeout(updateDraftFromInput, 220);
 }
 
 function setupVideoEvents() {
@@ -792,7 +1060,7 @@ function setupVideoEvents() {
     utterance.lang = "zh-CN";
     window.speechSynthesis.speak(utterance);
   });
-  $$(".quick-talk-list [data-talk]").forEach((button) => {
+  $$("[data-talk]").forEach((button) => {
     button.addEventListener("click", () => {
       $("#talkText").value = button.dataset.talk;
     });
@@ -806,7 +1074,7 @@ async function startVideo() {
     $("#careVideo").srcObject = stream;
     $("#videoPlaceholder").classList.add("hidden");
     $("#videoStatus").textContent = "观察中";
-    toast("视频观察已开启");
+    toast("视频已开启");
   } catch (error) {
     $("#videoStatus").textContent = "无法连接";
     toast(`无法开启摄像头/麦克风：${error.message}`);
@@ -822,7 +1090,7 @@ function stopVideo() {
 }
 
 function toggleTrack(kind, buttonSelector, label) {
-  if (!state.videoStream) return toast("请先开启视频观察");
+  if (!state.videoStream) return toast("请先开启视频");
   const tracks = state.videoStream.getTracks().filter((track) => track.kind === kind);
   tracks.forEach((track) => {
     track.enabled = !track.enabled;
@@ -836,7 +1104,8 @@ async function init() {
   setupUploads();
   await setupRecorder();
   await loadSamples();
-  await refreshSubjectCard();
+  updateTopTitle();
+  await Promise.all([loadMemories(), loadHistory()]);
   updateDraftFromInput();
 }
 
